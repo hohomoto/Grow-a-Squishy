@@ -9,6 +9,7 @@ local ORDER = {
 	"Inventory",
 	"PlotInput",
 	"PlantVisuals",
+	"WeatherFx",
 	-- State last: it requests the first snapshot once everyone is listening.
 	"State",
 }

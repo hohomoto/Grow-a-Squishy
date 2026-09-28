@@ -15,6 +15,7 @@ local ORDER = {
 	"ShopService",
 	"SellService",
 	"TravelService",
+	"WeatherService",
 }
 
 for _, name in ORDER do

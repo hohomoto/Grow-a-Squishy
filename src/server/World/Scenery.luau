@@ -1,6 +1,6 @@
 --!strict
--- Everything that makes the world look nice but has no gameplay: terrain,
--- lighting, candy trees, lollipop lamps, giant squishy statues, arches,
+-- Everything that makes the world look nice but has no gameplay: the flat
+-- cartoon meadow, hills and pond, lighting, candy trees, lollipop lamps, giant squishy statues, arches,
 -- flowers and clouds. Positions come from a fixed-seed RNG, so every server
 -- (and every playtest) looks the same.
 
@@ -10,6 +10,7 @@ local Workspace = game:GetService("Workspace")
 
 local Rng = require(ReplicatedStorage.Shared.Rng)
 local Build = require(script.Parent.Build)
+local SquishyModels = require(script.Parent.SquishyModels)
 
 export type Layout = {
 	pathWidth: number,
@@ -18,13 +19,14 @@ export type Layout = {
 	keepClear: { { center: Vector3, size: Vector3 } },
 	-- Z positions along the path where plot gates are; lamps avoid them.
 	gateZ: { number },
+	pondCenter: Vector3,
+	statueCenter: Vector3,
 }
 
 local SCENERY_SEED = 20260928
 local WORLD_HALF_SIZE = 260
-local POND_CENTER = Vector3.new(0, 0, -118)
 local POND_RADIUS = 22
-local STATUE_CENTER = Vector3.new(0, 0, 112)
+local MEADOW = Color3.fromRGB(150, 220, 120)
 
 local PASTELS = {
 	Color3.fromRGB(255, 170, 210), -- pink
@@ -53,10 +55,11 @@ local function isClear(layout: Layout, position: Vector3, margin: number): boole
 			return false
 		end
 	end
-	if (Vector3.new(position.X, 0, position.Z) - POND_CENTER).Magnitude < POND_RADIUS + margin then
+	local flat = Vector3.new(position.X, 0, position.Z)
+	if (flat - layout.pondCenter).Magnitude < POND_RADIUS + 6 + margin then
 		return false
 	end
-	if (Vector3.new(position.X, 0, position.Z) - STATUE_CENTER).Magnitude < 16 + margin then
+	if (flat - layout.statueCenter).Magnitude < 16 + margin then
 		return false
 	end
 	return math.abs(position.X) < WORLD_HALF_SIZE - 20 and math.abs(position.Z) < WORLD_HALF_SIZE - 20
@@ -83,38 +86,57 @@ local function scatter(rng: Rng.Rng, layout: Layout, count: number, margin: numb
 	return spots
 end
 
-local function buildTerrain()
-	local terrain = Workspace.Terrain
-	-- The default template's Baseplate would cover the terrain.
+-- Flat, cartoon-style ground built from smooth plastic parts (terrain
+-- materials always look realistic, which clashes with the art style).
+local function buildGround(folder: Instance, layout: Layout)
+	-- The default template's Baseplate would poke through the meadow.
 	local baseplate = Workspace:FindFirstChild("Baseplate")
 	if baseplate then
 		baseplate:Destroy()
 	end
 
-	terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(130, 210, 115))
-	terrain:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(255, 225, 190))
-	terrain.WaterColor = Color3.fromRGB(110, 205, 255)
-	terrain.WaterTransparency = 0.5
-	terrain.WaterReflectance = 0.6
-	terrain.WaterWaveSize = 0.08
-	terrain.WaterWaveSpeed = 6
-
-	-- Flat meadow, top surface at y = 0.
 	local span = WORLD_HALF_SIZE * 2
-	terrain:FillBlock(CFrame.new(0, -6, 0), Vector3.new(span, 12, span), Enum.Material.Grass)
+	Build.part({
+		Name = "Meadow",
+		Size = Vector3.new(span, 2, span),
+		Position = Vector3.new(0, -1, 0),
+		Color = MEADOW,
+		Parent = folder,
+	})
 
-	-- Pond with a sandy shore.
-	terrain:FillCylinder(CFrame.new(POND_CENTER + Vector3.new(0, -3, 0)), 6, POND_RADIUS + 4, Enum.Material.Sand)
-	terrain:FillCylinder(CFrame.new(POND_CENTER + Vector3.new(0, -3, 0)), 6, POND_RADIUS, Enum.Material.Water)
-
-	-- Rolling hills around the edge of the world.
 	local rng = Rng.new(SCENERY_SEED + 1)
+
+	-- Lighter and darker grass patches so the meadow isn't one flat color.
+	for _ = 1, 30 do
+		local spot = Vector3.new(between(rng, -230, 230), 0, between(rng, -230, 230))
+		if isClear(layout, spot, 12) then
+			local tone = if rng:next() < 0.5 then Build.tint(MEADOW, 0.18) else MEADOW:Lerp(Color3.new(0, 0.3, 0), 0.12)
+			Build.column(folder, spot, 0.08, between(rng, 14, 34), tone, { CanCollide = false, CanQuery = false })
+		end
+	end
+
+	-- Round, soft hills ringing the world.
 	for i = 1, 18 do
 		local angle = (i / 18) * math.pi * 2 + between(rng, -0.1, 0.1)
-		local distance = between(rng, 185, 225)
-		local radius = between(rng, 24, 38)
-		local center = Vector3.new(math.cos(angle) * distance, -radius * 0.55, math.sin(angle) * distance)
-		terrain:FillBall(center, radius, Enum.Material.Grass)
+		local distance = between(rng, 190, 230)
+		local diameter = between(rng, 50, 80)
+		local center = Vector3.new(math.cos(angle) * distance, -diameter * 0.28, math.sin(angle) * distance)
+		local tone = MEADOW:Lerp(Color3.fromRGB(90, 190, 110), between(rng, 0, 0.5))
+		Build.ball(folder, center, diameter, tone, { CanCollide = true })
+	end
+
+	-- Pond: sandy rim, water, and a few lily pads.
+	local pond = layout.pondCenter
+	Build.column(folder, pond, 0.3, (POND_RADIUS + 4) * 2, Color3.fromRGB(255, 225, 185))
+	Build.column(folder, pond, 0.4, POND_RADIUS * 2, Color3.fromRGB(120, 205, 255), {
+		Transparency = 0.1,
+		Reflectance = 0.15,
+	})
+	for _ = 1, 7 do
+		local angle = between(rng, 0, math.pi * 2)
+		local distance = between(rng, 4, POND_RADIUS - 4)
+		local spot = pond + Vector3.new(math.cos(angle) * distance, 0.4, math.sin(angle) * distance)
+		Build.column(folder, spot, 0.1, between(rng, 2.5, 4), Color3.fromRGB(110, 200, 110))
 	end
 end
 
@@ -165,7 +187,7 @@ local function candyTree(parent: Instance, rng: Rng.Rng, ground: Vector3)
 	local model = Instance.new("Model")
 	model.Name = "CandyTree"
 	local height = between(rng, 7, 11)
-	Build.column(model, ground, height, 1.4, Color3.fromRGB(215, 160, 120), { Material = Enum.Material.Wood })
+	Build.column(model, ground, height, 1.4, Color3.fromRGB(215, 160, 120))
 	local color = pick(rng, PASTELS)
 	local top = ground + Vector3.new(0, height, 0)
 	for i = 1, 3 do
@@ -235,12 +257,12 @@ local function flowerPatch(parent: Instance, rng: Rng.Rng, ground: Vector3)
 end
 
 function Scenery.build(parent: Instance, layout: Layout)
-	buildTerrain()
-	buildLighting()
-
 	local folder = Instance.new("Folder")
 	folder.Name = "Scenery"
 	folder.Parent = parent
+
+	buildGround(folder, layout)
+	buildLighting()
 	local rng = Rng.new(SCENERY_SEED)
 
 	-- Lollipop lamps along both sides of the path, skipping the plot gates.
@@ -274,20 +296,20 @@ function Scenery.build(parent: Instance, layout: Layout)
 		Name = "StatuePedestal",
 		Shape = Enum.PartType.Cylinder,
 		Size = Vector3.new(3, 26, 26),
-		CFrame = CFrame.new(STATUE_CENTER + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+		CFrame = CFrame.new(layout.statueCenter + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, 0, math.pi / 2),
 		Color = Color3.fromRGB(255, 255, 255),
 		Parent = folder,
 	})
-	Build.squishy(folder, STATUE_CENTER + Vector3.new(0, 3, 0), 20, PASTELS[1], Vector3.new(0, 0, 0))
+	SquishyModels.statue(folder, layout.statueCenter + Vector3.new(0, 3, 0), 20, PASTELS[1], Vector3.new(0, 0, 0))
 
 	-- Smaller squishies lounging around the meadow and by the pond.
 	for _, spot in scatter(rng, layout, 10, 6, 150) do
-		Build.squishy(folder, spot, between(rng, 4, 8), pick(rng, PASTELS), Vector3.new(0, 0, 0))
+		SquishyModels.statue(folder, spot, between(rng, 4, 8), pick(rng, PASTELS), Vector3.new(0, 0, 0))
 	end
 	for i = 1, 5 do
 		local angle = i / 5 * math.pi * 2
-		local spot = POND_CENTER + Vector3.new(math.cos(angle), 0, math.sin(angle)) * (POND_RADIUS + 6)
-		Build.squishy(folder, spot, between(rng, 3, 5), pick(rng, PASTELS), POND_CENTER)
+		local spot = layout.pondCenter + Vector3.new(math.cos(angle), 0, math.sin(angle)) * (POND_RADIUS + 6)
+		SquishyModels.statue(folder, spot, between(rng, 3, 5), pick(rng, PASTELS), layout.pondCenter)
 	end
 
 	for _, spot in scatter(rng, layout, 45, 7, 170) do

@@ -6,12 +6,15 @@ export type Plant = {
 	id: string,
 	startedAt: number,
 	readyAt: number,
+	-- Mutation ids (Config/Mutations). Nil when there are none.
+	mutations: { string }?,
 }
 
 -- A harvested squishy waiting to be sold.
 export type Harvest = {
 	id: string,
 	size: number,
+	mutations: { string }?,
 }
 
 export type PlayerData = {

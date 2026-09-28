@@ -3,7 +3,7 @@
 
 return {
 	StartingCoins = 20,
-	StartingSeeds = { mochi = 3 } :: { [string]: number },
+	StartingSeeds = { mochi_bao = 3 } :: { [string]: number },
 
 	-- Max harvested squishies a player can carry before they must sell.
 	BackpackCapacity = 150,
@@ -19,7 +19,10 @@ return {
 	SizeSkew = 3,
 
 	-- World layout. Set the place's Max Players to PlotCount in Game Settings.
+	-- Each plot has two garden beds of PlotColumns x PlotBedRows tiles with a
+	-- walkway between them; tiles are numbered row by row across both beds.
 	PlotCount = 6,
-	PlotColumns = 6,
-	PlotRows = 4,
+	PlotColumns = 8,
+	PlotBedRows = 4,
+	PlotRows = 8,
 }

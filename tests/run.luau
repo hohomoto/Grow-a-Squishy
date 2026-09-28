@@ -95,6 +95,9 @@ local Rarities = load("Config/Rarities")
 local Rng = load("Rng")
 local ShopStock = load("ShopStock")
 local Squishies = load("Config/Squishies")
+local Mutations = load("Config/Mutations")
+local Weather = load("Config/Weather")
+local WeatherSchedule = load("WeatherSchedule")
 
 -- Rng ---------------------------------------------------------------------
 
@@ -274,8 +277,8 @@ end)
 
 -- Catalog sanity ----------------------------------------------------------
 
-local VALID_SHAPES = { Ball = true, Block = true, Cylinder = true }
-local VALID_MATERIALS = { SmoothPlastic = true, Glass = true, Neon = true, Plastic = true, ForceField = true }
+local VALID_KINDS = { bao = true, cube = true, butter = true, keycap = true }
+local VALID_MATERIALS = { SmoothPlastic = true, Glass = true, Neon = true }
 
 test("Every squishy is well-formed", function()
 	for _, def in Squishies.List do
@@ -284,7 +287,10 @@ test("Every squishy is well-formed", function()
 		assert(def.seedPrice > 0 and def.growTime > 0 and def.baseValue > 0, def.id .. " has non-positive numbers")
 		assert(def.stockChance > 0 and def.stockChance <= 1, def.id .. " stockChance out of range")
 		assert(def.stock[1] >= 1 and def.stock[1] <= def.stock[2], def.id .. " bad stock range")
-		assert(VALID_SHAPES[def.shape], def.id .. " bad shape")
+		assert(VALID_KINDS[def.kind], def.id .. " has unknown kind " .. tostring(def.kind))
+		if def.accent then
+			assert(#def.accent == 3, def.id .. " accent needs 3 channels")
+		end
 		assert(VALID_MATERIALS[def.material], def.id .. " material not in the tested list")
 		assert(#def.color == 3, def.id .. " color needs 3 channels")
 		eq(Squishies.ById[def.id], def, "ById lookup")
@@ -331,9 +337,155 @@ test("Every squishy turns a profit at average size", function()
 end)
 
 test("A new player can afford their first shop purchase after one harvest", function()
-	local startDef = Squishies.ById.mochi
+	local startDef = Squishies.ById.mochi_bao
 	local worstFirstSale = Growth.value(startDef.baseValue, Economy.MinSize)
 	assert(Economy.StartingCoins + worstFirstSale >= startDef.seedPrice)
+end)
+
+test("Plot layout constants agree", function()
+	eq(Economy.PlotRows, Economy.PlotBedRows * 2, "PlotRows must be two beds of PlotBedRows")
+end)
+
+-- Mutations ---------------------------------------------------------------
+
+test("Mutation multipliers stack additively", function()
+	eq(Mutations.multiplier(nil), 1)
+	eq(Mutations.multiplier({}), 1)
+	eq(Mutations.multiplier({ "Glitter" }), 2)
+	eq(Mutations.multiplier({ "Gold", "Frozen" }), 1 + 14 + 4)
+	eq(Mutations.multiplier({ "NotAMutation" }), 1, "unknown ids are ignored")
+	eq(Growth.value(100, 1, { "Frozen" }), 500)
+	eq(Growth.value(100, 2, { "Glitter" }), 800)
+end)
+
+test("Mutations.add dedupes, respects groups, and never mutates its input", function()
+	local original = { "Glitter" }
+	local list, changed = Mutations.add(original, "Frozen")
+	eq(changed, true)
+	eq(#original, 1, "input untouched")
+	eq(#list, 2)
+
+	local same, changedAgain = Mutations.add(list, "Frozen")
+	eq(changedAgain, false)
+	eq(#same, 2)
+
+	-- Rainbow replaces Gold; Gold can't replace Rainbow.
+	local gold = Mutations.add(nil, "Gold")
+	local rainbow = Mutations.add(gold, "Rainbow")
+	eq(#rainbow, 1)
+	eq(rainbow[1], "Rainbow")
+	local _, downgraded = Mutations.add(rainbow, "Gold")
+	eq(downgraded, false)
+
+	local _, unknown = Mutations.add(nil, "Nope")
+	eq(unknown, false)
+end)
+
+test("Mutations.rollBase respects baseChance and only rolls base mutations", function()
+	eq(
+		Mutations.rollBase(function()
+			return 0.999
+		end),
+		nil,
+		"no mutations on a high roll"
+	)
+
+	local all = Mutations.rollBase(function()
+		return 0
+	end)
+	assert(all, "a zero roll hits every base mutation")
+	for _, id in all do
+		assert(Mutations.ById[id].baseChance, id .. " is weather-only and should never roll at planting")
+	end
+	-- Gold and Rainbow share a group, so only Rainbow survives.
+	assert(table.find(all, "Rainbow") and not table.find(all, "Gold"))
+
+	local rng = Rng.new(42)
+	local n, glitter = 50000, 0
+	for _ = 1, n do
+		local rolled = Mutations.rollBase(function()
+			return rng:next()
+		end)
+		if rolled and table.find(rolled, "Glitter") then
+			glitter += 1
+		end
+	end
+	near(glitter / n, Mutations.ById.Glitter.baseChance :: number, 0.003, "Glitter rate")
+end)
+
+test("Every weather event grants a real, weather-only mutation", function()
+	for _, def in Weather.List do
+		local mutation = Mutations.ById[def.mutation]
+		assert(mutation, def.id .. " grants unknown mutation " .. def.mutation)
+		assert(def.duration > 0 and def.weight > 0, def.id .. " needs a duration and weight")
+		assert(def.chancePerTick > 0 or (def.starChancePerTick or 0) > 0, def.id .. " never mutates anything")
+		assert(def.duration + 10 < Weather.Interval, def.id .. " is longer than a weather window")
+	end
+end)
+
+-- Weather schedule --------------------------------------------------------
+
+local LIVE = { interval = Weather.Interval, eventChance = Weather.EventChance }
+
+test("Weather schedule is deterministic and events stay inside their window", function()
+	for window = 3_000_000, 3_000_300 do
+		local a = WeatherSchedule.eventInWindow(window, LIVE)
+		local b = WeatherSchedule.eventInWindow(window, LIVE)
+		eq(a ~= nil, b ~= nil)
+		if a and b then
+			eq(a.def.id, b.def.id)
+			eq(a.startsAt, b.startsAt)
+			assert(a.startsAt >= window * LIVE.interval, "starts before its window")
+			assert(a.endsAt <= (window + 1) * LIVE.interval, "runs past its window")
+		end
+	end
+end)
+
+test("Weather.at matches the event window exactly", function()
+	local window = 3_000_000
+	while not WeatherSchedule.eventInWindow(window, LIVE) do
+		window += 1
+	end
+	local event = WeatherSchedule.eventInWindow(window, LIVE) :: any
+	eq(WeatherSchedule.at(event.startsAt - 1, LIVE), nil, "before start")
+	eq((WeatherSchedule.at(event.startsAt, LIVE) :: any).def.id, event.def.id, "at start")
+	eq((WeatherSchedule.at(event.endsAt - 1, LIVE) :: any).def.id, event.def.id, "last second")
+	eq(WeatherSchedule.at(event.endsAt, LIVE), nil, "after end")
+end)
+
+test("Weather event rate and type mix follow the config", function()
+	local n, events = 20000, 0
+	local counts = {}
+	for window = 1, n do
+		local event = WeatherSchedule.eventInWindow(window, LIVE)
+		if event then
+			events += 1
+			counts[event.def.id] = (counts[event.def.id] or 0) + 1
+		end
+	end
+	near(events / n, Weather.EventChance, 0.015, "event rate")
+	local totalWeight = 0
+	for _, def in Weather.List do
+		totalWeight += def.weight
+	end
+	for _, def in Weather.List do
+		near((counts[def.id] or 0) / events, def.weight / totalWeight, 0.02, def.id .. " share")
+	end
+end)
+
+test("Studio weather cycles through every type with an event every window", function()
+	local studio =
+		{ interval = Weather.StudioInterval, eventChance = 1, duration = Weather.StudioDuration, cycle = true }
+	local seen = {}
+	for window = 100, 100 + #Weather.List - 1 do
+		local event = WeatherSchedule.eventInWindow(window, studio)
+		assert(event, "studio window without an event")
+		eq(event.endsAt - event.startsAt, Weather.StudioDuration)
+		seen[event.def.id] = true
+	end
+	for _, def in Weather.List do
+		assert(seen[def.id], def.id .. " never shows up in Studio")
+	end
 end)
 
 print(`\n{passed} passed, {failed} failed`)

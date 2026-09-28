@@ -4,9 +4,6 @@
 
 local Build = {}
 
--- Roblox's classic smiley, shipped with every client (no upload needed).
-local FACE_TEXTURE = "rbxasset://textures/face.png"
-
 local function apply(instance: Instance, props: { [string]: any }?)
 	if props then
 		for key, value in props do
@@ -94,45 +91,6 @@ function Build.beam(
 		Color = color,
 	})
 	apply(p, props)
-	p.Parent = parent
-	return p
-end
-
--- Puts a smiley face on the part's Front (-Z) side.
-function Build.face(p: BasePart)
-	local decal = Instance.new("Decal")
-	decal.Name = "Face"
-	decal.Face = Enum.NormalId.Front
-	decal.Texture = FACE_TEXTURE
-	decal.Parent = p
-end
-
--- A soft, rounded squishy with a face, sitting on `ground` and looking at
--- `lookAt`. `proportions` stretches it (x = width, y = height, z = depth).
-function Build.squishy(
-	parent: Instance,
-	ground: Vector3,
-	size: number,
-	color: Color3,
-	lookAt: Vector3,
-	proportions: Vector3?
-): Part
-	local shape = proportions or Vector3.new(1, 0.85, 1)
-	local partSize = shape * size
-	local center = ground + Vector3.new(0, partSize.Y / 2, 0)
-	local flatTarget = Vector3.new(lookAt.X, center.Y, lookAt.Z)
-	local p = Build.decor({
-		Size = partSize,
-		CFrame = if (flatTarget - center).Magnitude > 0.01
-			then CFrame.lookAt(center, flatTarget)
-			else CFrame.new(center),
-		Color = color,
-		CanCollide = true,
-	})
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.Head
-	mesh.Parent = p
-	Build.face(p)
 	p.Parent = parent
 	return p
 end

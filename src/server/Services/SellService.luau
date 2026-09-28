@@ -28,7 +28,7 @@ local function sellAll(player: Player)
 	for _, item in data.backpack do
 		local def = Squishies.ById[item.id]
 		if def then
-			total += Growth.value(def.baseValue, item.size)
+			total += Growth.value(def.baseValue, item.size, item.mutations)
 			count += 1
 		end
 	end

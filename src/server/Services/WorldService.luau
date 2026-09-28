@@ -14,21 +14,28 @@ local Workspace = game:GetService("Workspace")
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
 local Build = require(script.Parent.Parent.World.Build)
 local Scenery = require(script.Parent.Parent.World.Scenery)
+local SquishyModels = require(script.Parent.Parent.World.SquishyModels)
 
-local TILE_SIZE = 6
-local TILE_GAP = 1
+local TILE_SIZE = 5
+local TILE_GAP = 0.6
 local TILE_STEP = TILE_SIZE + TILE_GAP
 local PLOT_PADDING = 3
+-- Walkway between a plot's two garden beds (where the gate leads).
+local BED_GAP = 6
 local PATH_WIDTH = 24
 local PLOT_SPACING = 12
-local GATE_WIDTH = 10
+local GATE_WIDTH = 6
 
-local PLOT_WIDTH = Economy.PlotColumns * TILE_STEP - TILE_GAP + PLOT_PADDING * 2
-local PLOT_DEPTH = Economy.PlotRows * TILE_STEP - TILE_GAP + PLOT_PADDING * 2
+local BED_WIDTH = Economy.PlotColumns * TILE_STEP - TILE_GAP
+local BED_DEPTH = Economy.PlotBedRows * TILE_STEP - TILE_GAP
+local PLOT_WIDTH = BED_WIDTH + PLOT_PADDING * 2
+local PLOT_DEPTH = BED_DEPTH * 2 + BED_GAP + PLOT_PADDING * 2
 local PATH_HALF_LENGTH = (PLOT_DEPTH * 3 + PLOT_SPACING * 4) / 2
 local STAND_Z = (PLOT_DEPTH + PLOT_SPACING) / 2
 
 local WHITE = Color3.fromRGB(255, 255, 255)
+-- A shade darker than the meadow so plots stand out.
+local GRASS = Color3.fromRGB(120, 200, 95)
 local GOLD = Color3.fromRGB(255, 205, 60)
 local SOIL = Color3.fromRGB(110, 75, 55)
 local PATH_COLOR = Color3.fromRGB(255, 212, 228)
@@ -80,8 +87,7 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 		Name = "Base",
 		Size = Vector3.new(PLOT_WIDTH, 1, PLOT_DEPTH),
 		Position = center + Vector3.new(0, 0.5, 0),
-		Color = Color3.fromRGB(120, 200, 105),
-		Material = Enum.Material.Grass,
+		Color = GRASS,
 		Parent = plot,
 	})
 	plot.PrimaryPart = base
@@ -91,52 +97,63 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 	decor.Name = "Decor"
 	decor.Parent = plot
 
-	-- Planter bed: dark soil under the tiles with a wooden frame around it.
-	local bedWidth = Economy.PlotColumns * TILE_STEP + 0.4
-	local bedDepth = Economy.PlotRows * TILE_STEP + 0.4
+	-- Two garden beds (soil + frame), one on each side of a middle walkway.
 	local frameColor = Build.tint(accent, 0.35)
+	local bedOffset = (BED_DEPTH + BED_GAP) / 2
+	for _, side in { -1, 1 } do
+		local bedCenter = top + Vector3.new(0, 0, side * bedOffset)
+		Build.part({
+			Name = "Soil",
+			Size = Vector3.new(BED_WIDTH + 0.6, 0.2, BED_DEPTH + 0.6),
+			Position = bedCenter + Vector3.new(0, 0.1, 0),
+			Color = SOIL,
+			Parent = decor,
+		})
+		for _, edge in { -1, 1 } do
+			Build.part({
+				Name = "Frame",
+				Size = Vector3.new(BED_WIDTH + 2.2, 0.6, 0.8),
+				Position = bedCenter + Vector3.new(0, 0.3, edge * (BED_DEPTH / 2 + 0.7)),
+				Color = frameColor,
+				Parent = decor,
+			})
+			Build.part({
+				Name = "Frame",
+				Size = Vector3.new(0.8, 0.6, BED_DEPTH + 0.6),
+				Position = bedCenter + Vector3.new(edge * (BED_WIDTH / 2 + 0.7), 0.3, 0),
+				Color = frameColor,
+				Parent = decor,
+			})
+		end
+	end
 	Build.part({
-		Name = "Soil",
-		Size = Vector3.new(bedWidth, 0.2, bedDepth),
-		Position = top + Vector3.new(0, 0.1, 0),
-		Color = SOIL,
-		Material = Enum.Material.Ground,
+		Name = "Walkway",
+		Size = Vector3.new(PLOT_WIDTH - 1, 0.1, BED_GAP - 2.2),
+		Position = top + Vector3.new(0, 0.05, 0),
+		Color = PATH_COLOR,
 		Parent = decor,
 	})
-	for _, side in { -1, 1 } do
-		Build.part({
-			Name = "Frame",
-			Size = Vector3.new(bedWidth + 1.6, 0.6, 0.8),
-			Position = top + Vector3.new(0, 0.3, side * (bedDepth / 2 + 0.4)),
-			Color = frameColor,
-			Material = Enum.Material.Wood,
-			Parent = decor,
-		})
-		Build.part({
-			Name = "Frame",
-			Size = Vector3.new(0.8, 0.6, bedDepth),
-			Position = top + Vector3.new(side * (bedWidth / 2 + 0.4), 0.3, 0),
-			Color = frameColor,
-			Material = Enum.Material.Wood,
-			Parent = decor,
-		})
-	end
 
 	local tiles = Instance.new("Folder")
 	tiles.Name = "Tiles"
 	tiles.Parent = plot
-	local originX = center.X - PLOT_WIDTH / 2 + PLOT_PADDING + TILE_SIZE / 2
+	local originX = center.X - BED_WIDTH / 2 + TILE_SIZE / 2
 	local originZ = center.Z - PLOT_DEPTH / 2 + PLOT_PADDING + TILE_SIZE / 2
 	for row = 1, Economy.PlotRows do
+		local bed = if row > Economy.PlotBedRows then 1 else 0
+		local rowInBed = (row - 1) % Economy.PlotBedRows
 		for column = 1, Economy.PlotColumns do
 			local tileIndex = (row - 1) * Economy.PlotColumns + column
 			local tile = Build.part({
 				Name = tostring(tileIndex),
 				Size = Vector3.new(TILE_SIZE, 0.4, TILE_SIZE),
-				Position = Vector3.new(originX + (column - 1) * TILE_STEP, 1.2, originZ + (row - 1) * TILE_STEP),
+				Position = Vector3.new(
+					originX + (column - 1) * TILE_STEP,
+					1.2,
+					originZ + rowInBed * TILE_STEP + bed * (BED_DEPTH + BED_GAP)
+				),
 				-- Checkerboard shading so individual tiles are easy to see.
-				Color = if (row + column) % 2 == 0 then Color3.fromRGB(150, 100, 70) else Color3.fromRGB(135, 90, 62),
-				Material = Enum.Material.Ground,
+				Color = if (row + column) % 2 == 0 then Color3.fromRGB(165, 110, 75) else Color3.fromRGB(150, 98, 66),
 				Parent = tiles,
 			})
 			tile:SetAttribute("TileIndex", tileIndex)
@@ -178,7 +195,6 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 		Size = Vector3.new(4.4, 0.4, GATE_WIDTH),
 		Position = Vector3.new(center.X + facingPath * (PLOT_WIDTH / 2 + 2), 0.2, center.Z),
 		Color = PATH_COLOR,
-		Material = Enum.Material.Cobblestone,
 		Parent = decor,
 	})
 
@@ -201,7 +217,6 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 		Size = Vector3.new(0.4, 2.4, 6),
 		Position = signBase + Vector3.new(0, 5.6, 0),
 		Color = accent,
-		Material = Enum.Material.Wood,
 		Parent = plot,
 	})
 	Build.billboard(board, "Empty Plot", 2.8)
@@ -228,7 +243,6 @@ local function buildStall(
 		Size = Vector3.new(12, 3.5, 3),
 		Position = position + Vector3.new(0, 1.75, 0),
 		Color = color,
-		Material = Enum.Material.Wood,
 		Parent = model,
 	})
 	Build.part({
@@ -251,7 +265,6 @@ local function buildStall(
 		Size = Vector3.new(12, 8, 0.6),
 		Position = Vector3.new(position.X, 4, backZ),
 		Color = Build.tint(color, 0.55),
-		Material = Enum.Material.Wood,
 		Parent = model,
 	})
 
@@ -288,7 +301,6 @@ local function buildPathAndPlaza(map: Instance)
 		Size = Vector3.new(PATH_WIDTH, 0.4, PATH_HALF_LENGTH * 2),
 		Position = Vector3.new(0, 0.2, 0),
 		Color = PATH_COLOR,
-		Material = Enum.Material.Cobblestone,
 		Parent = map,
 	})
 	for _, side in { -1, 1 } do
@@ -351,7 +363,7 @@ function WorldService.Start()
 	-- The client opens the shop UI when this prompt fires.
 	shopPrompt:SetAttribute("OpensShop", true)
 	-- Mascot mochi on the roof, and seed "samples" on the counter.
-	Build.squishy(shop, Vector3.new(0, 10.2, -STAND_Z - 1.5), 4.5, Color3.fromRGB(255, 200, 225), Vector3.zero)
+	SquishyModels.statue(shop, Vector3.new(0, 10.2, -STAND_Z - 1.5), 4.5, Color3.fromRGB(255, 200, 225), Vector3.zero)
 	for i, x in { -4.5, -3, 3, 4.5 } do
 		Build.ball(shop, Vector3.new(x, 4.5, -STAND_Z), 1.2, PLOT_ACCENTS[i])
 	end
@@ -373,7 +385,7 @@ function WorldService.Start()
 		Size = Vector3.new(0.8, 5, 5),
 		CFrame = CFrame.new(0, 12.5, STAND_Z + 1.5) * CFrame.Angles(0, math.pi / 2, 0),
 		Color = GOLD,
-		Material = Enum.Material.Foil,
+		Reflectance = 0.15,
 		Parent = sell,
 	})
 	for stack, x in { -4.5, 4.5 } do
@@ -396,6 +408,8 @@ function WorldService.Start()
 			{ center = Vector3.zero, size = Vector3.new(playWidth, 0, PATH_HALF_LENGTH * 2 + 16) },
 		},
 		gateZ = gateZ,
+		pondCenter = Vector3.new(0, 0, -(PATH_HALF_LENGTH + 42)),
+		statueCenter = Vector3.new(0, 0, PATH_HALF_LENGTH + 34),
 	})
 end
 

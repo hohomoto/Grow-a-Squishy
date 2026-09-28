@@ -1,39 +1,41 @@
 --!strict
--- Planting, harvesting, and removing squishies. The server is authoritative:
--- growth is just timestamps in saved data, so plants keep growing while the
--- player is offline and the client can never speed them up.
+-- Planting, harvesting, removing, and mutating squishies. The server is
+-- authoritative: growth is just timestamps in saved data, so plants keep
+-- growing while the player is offline and the client can never speed them up.
 
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Economy = require(Shared.Config.Economy)
 local Growth = require(Shared.Growth)
+local Mutations = require(Shared.Config.Mutations)
 local Remotes = require(Shared.Remotes)
 local Squishies = require(Shared.Config.Squishies)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
 local RateLimit = require(script.Parent.Parent.RateLimit)
+local SquishyModels = require(script.Parent.Parent.World.SquishyModels)
 local Sync = require(script.Parent.Parent.Sync)
-local Build = require(script.Parent.Parent.World.Build)
 
 -- Tag the client uses to find plants to animate.
 local PLANT_TAG = "SquishyPlant"
--- Full-grown size in studs, before per-shape proportions.
-local FULL_SIZE = 3.5
--- Width / height / depth multipliers for each catalog shape.
-local SHAPE_PROPORTIONS = {
-	Ball = Vector3.new(1, 0.85, 1), -- squat mochi
-	Cylinder = Vector3.new(0.9, 1.1, 0.9), -- tall slime tub
-	Block = Vector3.new(1, 0.8, 0.9), -- bread bun / plushy
-}
+-- Full-grown size in studs, before per-family proportions.
+local FULL_SIZE = 3.2
 local TILE_COUNT = Economy.PlotColumns * Economy.PlotRows
+-- Harvests worth at least this multiplier are announced to the whole server.
+local ANNOUNCE_MULTIPLIER = 15
 
 local GardenService = {}
 
-local sizeRandom = Random.new()
+local random = Random.new()
 local plotLimit = RateLimit.new(8, 12)
+
+local function roll(): number
+	return random:NextNumber()
+end
 
 local function validTileIndex(value: unknown): number?
 	if type(value) == "number" and value == math.floor(value) and value >= 1 and value <= TILE_COUNT then
@@ -46,9 +48,17 @@ local function plantPart(plot: Model, key: string): BasePart?
 	return (plot :: any).Plants:FindFirstChild(key)
 end
 
-local function applyTimes(part: BasePart, plant: Types.Plant)
+-- Copies the parts of the plant record the client needs onto its part.
+local function applyPlantState(part: BasePart, plant: Types.Plant)
 	part:SetAttribute("StartedAt", plant.startedAt)
 	part:SetAttribute("ReadyAt", plant.readyAt)
+	part:SetAttribute("Mutations", if plant.mutations then table.concat(plant.mutations, ",") else "")
+end
+
+-- "Gold Mochi Bao" / "Mochi Bao"
+local function displayName(def: Squishies.SquishyDef, mutations: { string }?): string
+	local prefix = Mutations.names(mutations)
+	return if prefix == "" then def.name else prefix .. " " .. def.name
 end
 
 function GardenService.Harvest(player: Player, key: string)
@@ -68,16 +78,19 @@ function GardenService.Harvest(player: Player, key: string)
 		return
 	end
 
-	local size = Growth.sizeFromRoll(sizeRandom:NextNumber())
-	table.insert(data.backpack, { id = plant.id, size = size })
+	local size = Growth.sizeFromRoll(roll())
+	local mutations = plant.mutations
+	table.insert(data.backpack, { id = plant.id, size = size, mutations = mutations })
 	data.stats.harvested += 1
 
 	local part = plantPart(plot, key)
 	if def.regrowTime then
+		-- Each regrowth is a fresh squishy with its own chance to mutate.
 		plant.startedAt = now
 		plant.readyAt = now + def.regrowTime
+		plant.mutations = Mutations.rollBase(roll)
 		if part then
-			applyTimes(part, plant)
+			applyPlantState(part, plant)
 		end
 	else
 		data.plants[key] = nil
@@ -86,54 +99,52 @@ function GardenService.Harvest(player: Player, key: string)
 		end
 	end
 
-	Sync.notify(player, string.format("Harvested %s (%.2fx)", def.name, size))
+	local name = displayName(def, mutations)
+	Sync.notify(player, string.format("Harvested %s (%.2fx)", name, size))
+	if Mutations.multiplier(mutations) >= ANNOUNCE_MULTIPLIER then
+		for _, other in Players:GetPlayers() do
+			if other ~= player then
+				Sync.notify(other, `{player.DisplayName} harvested a {name}!`)
+			end
+		end
+	end
 	Sync.push(player)
 end
 
 local function spawnPlant(player: Player, plot: Model, key: string, plant: Types.Plant)
 	local def = Squishies.ById[plant.id]
-	local tile = PlotService.GetTile(plot, tonumber(key) :: number)
+	local tileIndex = tonumber(key) :: number
+	local tile = PlotService.GetTile(plot, tileIndex)
 	if not def or not tile then
 		warn(`[GardenService] skipping unknown plant {plant.id} on tile {key}`)
 		return
 	end
 
 	local anchor = tile.Position + Vector3.new(0, tile.Size.Y / 2, 0)
-	local proportions = SHAPE_PROPORTIONS[def.shape] or Vector3.one
+	local proportions = SquishyModels.Proportions[def.kind]
 	local facing = plot:GetAttribute("Facing")
 	local seedling = proportions * FULL_SIZE * 0.25
-	local color = Color3.fromRGB(def.color[1], def.color[2], def.color[3])
 
-	local part = Instance.new("Part")
+	local part = SquishyModels.create(def, tileIndex)
 	part.Name = key
 	part.Size = seedling
 	part.CFrame = CFrame.new(anchor + Vector3.new(0, seedling.Y / 2, 0))
-	part.Anchored = true
-	part.CanCollide = false
-	part.Color = color
-	part.Material = (Enum.Material :: any)[def.material]
 	part:SetAttribute("SquishyId", def.id)
-	part:SetAttribute("TileIndex", tonumber(key))
+	part:SetAttribute("TileIndex", tileIndex)
 	part:SetAttribute("OwnerUserId", player.UserId)
 	part:SetAttribute("FullSize", FULL_SIZE)
 	part:SetAttribute("Proportions", proportions)
+	part:SetAttribute("BaseColor", part.Color)
+	part:SetAttribute("BaseMaterial", def.material)
 	part:SetAttribute("Anchor", anchor)
 	part:SetAttribute("Facing", if typeof(facing) == "Vector3" then facing else Vector3.new(0, 0, -1))
-	applyTimes(part, plant)
-
-	-- Round shapes use the classic Head mesh for a soft, squishy look.
-	if def.shape ~= "Block" then
-		local mesh = Instance.new("SpecialMesh")
-		mesh.MeshType = Enum.MeshType.Head
-		mesh.Parent = part
-	end
-	Build.face(part)
+	applyPlantState(part, plant)
 
 	-- Sparkles while ready; the client switches them on and off.
 	local sparkles = Instance.new("ParticleEmitter")
 	sparkles.Name = "ReadySparkles"
 	sparkles.Enabled = false
-	sparkles.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+	sparkles.Color = ColorSequence.new(Color3.new(1, 1, 1), part.Color)
 	sparkles.LightEmission = 0.8
 	sparkles.Rate = 4
 	sparkles.Lifetime = NumberRange.new(0.8, 1.4)
@@ -144,7 +155,7 @@ local function spawnPlant(player: Player, plot: Model, key: string, plant: Types
 
 	local info = Instance.new("BillboardGui")
 	info.Name = "Info"
-	info.Size = UDim2.fromOffset(150, 36)
+	info.Size = UDim2.fromOffset(170, 48)
 	info.ExtentsOffsetWorldSpace = Vector3.new(0, 1.5, 0)
 	info.MaxDistance = 60
 	info.LightInfluence = 0
@@ -153,6 +164,7 @@ local function spawnPlant(player: Player, plot: Model, key: string, plant: Types
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.FredokaOne
+	label.RichText = true
 	label.TextScaled = true
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.TextStrokeTransparency = 0.4
@@ -177,6 +189,38 @@ local function spawnPlant(player: Player, plot: Model, key: string, plant: Types
 
 	CollectionService:AddTag(part, PLANT_TAG)
 	part.Parent = (plot :: any).Plants
+end
+
+-- Adds a mutation to a planted squishy. Returns true if it was new.
+function GardenService.AddMutation(player: Player, key: string, mutationId: string): boolean
+	local data = DataService.Get(player)
+	local plot = PlotService.GetPlot(player)
+	local plant = data and data.plants[key]
+	if not plant or not plot then
+		return false
+	end
+	local updated, changed = Mutations.add(plant.mutations, mutationId)
+	if changed then
+		plant.mutations = updated
+		local part = plantPart(plot, key)
+		if part then
+			applyPlantState(part, plant)
+		end
+	end
+	return changed
+end
+
+-- Calls fn for every planted squishy of every player with a plot.
+function GardenService.ForEachPlant(fn: (player: Player, key: string, plant: Types.Plant, part: BasePart?) -> ())
+	for _, player in Players:GetPlayers() do
+		local data = DataService.Get(player)
+		local plot = PlotService.GetPlot(player)
+		if data and plot then
+			for key, plant in data.plants do
+				fn(player, key, plant, plantPart(plot, key))
+			end
+		end
+	end
 end
 
 local function onPlantSeed(player: Player, rawTile: unknown, rawId: unknown)
@@ -207,7 +251,12 @@ local function onPlantSeed(player: Player, rawTile: unknown, rawId: unknown)
 		data.seeds[def.id] = nil
 	end
 	local now = os.time()
-	local plant: Types.Plant = { id = def.id, startedAt = now, readyAt = now + def.growTime }
+	local plant: Types.Plant = {
+		id = def.id,
+		startedAt = now,
+		readyAt = now + def.growTime,
+		mutations = Mutations.rollBase(roll),
+	}
 	data.plants[key] = plant
 	spawnPlant(player, plot, key, plant)
 	Sync.push(player)
@@ -234,7 +283,7 @@ local function onRemovePlant(player: Player, rawTile: unknown)
 		part:Destroy()
 	end
 	local def = Squishies.ById[plant.id]
-	Sync.notify(player, "Dug up " .. (if def then def.name else "a squishy"))
+	Sync.notify(player, "Dug up " .. (if def then displayName(def, plant.mutations) else "a squishy"))
 end
 
 function GardenService.Start()

@@ -20,12 +20,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Economy = require(Shared.Config.Economy)
 local Signal = require(Shared.Signal)
+local Squishies = require(Shared.Config.Squishies)
 local Types = require(Shared.Types)
 
 type PlayerData = Types.PlayerData
 
 local STORE_NAME = "PlayerData_v1"
-local SCHEMA_VERSION = 1
+local SCHEMA_VERSION = 2
 local AUTOSAVE_INTERVAL = 120
 -- A lock older than this belongs to a server that died without releasing it.
 -- Must be comfortably longer than AUTOSAVE_INTERVAL.
@@ -75,8 +76,27 @@ local function migrate(data: PlayerData): PlayerData
 	fillMissing(data, defaults)
 	fillMissing(data.shop, defaults.shop)
 	fillMissing(data.stats, defaults.stats)
-	-- Add versioned migrations here, e.g.:
-	-- if data.version < 2 then ...; data.version = 2 end
+	if data.version < 2 then
+		-- v2 replaced the pre-launch catalog. Drop items that no longer exist.
+		for id in data.seeds do
+			if not Squishies.ById[id] then
+				data.seeds[id] = nil
+			end
+		end
+		for key, plant in data.plants do
+			if not Squishies.ById[plant.id] then
+				data.plants[key] = nil
+			end
+		end
+		local kept = {}
+		for _, item in data.backpack do
+			if Squishies.ById[item.id] then
+				table.insert(kept, item)
+			end
+		end
+		data.backpack = kept
+	end
+	-- Add the next migration here: if data.version < 3 then ... end
 	data.version = SCHEMA_VERSION
 	return data
 end

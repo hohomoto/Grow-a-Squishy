@@ -2,6 +2,7 @@
 -- Pure growth and value math shared by server (authoritative) and client (visuals).
 
 local Economy = require(script.Parent.Config.Economy)
+local Mutations = require(script.Parent.Config.Mutations)
 
 local Growth = {}
 
@@ -24,9 +25,9 @@ function Growth.sizeFromRoll(u: number): number
 	return math.floor(size * 100 + 0.5) / 100
 end
 
--- Sell value of one harvested squishy.
-function Growth.value(baseValue: number, size: number): number
-	return math.max(1, math.floor(baseValue * size * size + 0.5))
+-- Sell value of one harvested squishy: base × size² × mutation multiplier.
+function Growth.value(baseValue: number, size: number, mutations: { string }?): number
+	return math.max(1, math.floor(baseValue * size * size * Mutations.multiplier(mutations) + 0.5))
 end
 
 return Growth

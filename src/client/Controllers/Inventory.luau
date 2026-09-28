@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Format = require(Shared.Format)
 local Growth = require(Shared.Growth)
+local Mutations = require(Shared.Config.Mutations)
 local Rarities = require(Shared.Config.Rarities)
 local Remotes = require(Shared.Remotes)
 local Squishies = require(Shared.Config.Squishies)
@@ -66,8 +67,8 @@ local function renderSquishies(state: Types.ClientState)
 	for _, item in state.backpack do
 		local def = Squishies.ById[item.id]
 		if def then
-			local value = Growth.value(def.baseValue, item.size)
-			table.insert(items, { def = def, size = item.size, value = value })
+			local value = Growth.value(def.baseValue, item.size, item.mutations)
+			table.insert(items, { def = def, size = item.size, value = value, mutations = item.mutations })
 		end
 	end
 	table.sort(items, function(a, b)
@@ -99,6 +100,30 @@ local function renderSquishies(state: Types.ClientState)
 			Text = "$" .. Format.short(item.value),
 			Parent = frame,
 		})
+		local top = Mutations.top(item.mutations)
+		if top then
+			-- Mutated: colored border plus a tag line under the stats.
+			local stroke = frame:FindFirstChildWhichIsA("UIStroke")
+			if stroke then
+				stroke.Color = Ui.rgb(top.color)
+				stroke.Thickness = 4
+			end
+			local tags = {}
+			for _, id in item.mutations :: { string } do
+				local mutation = Mutations.ById[id]
+				if mutation then
+					table.insert(tags, `<font color="#{Ui.rgb(mutation.color):ToHex()}">{mutation.name}</font>`)
+				end
+			end
+			Ui.label({
+				Position = UDim2.fromOffset(4, 106),
+				Size = UDim2.new(1, -8, 0, 16),
+				RichText = true,
+				TextStrokeTransparency = 0.5,
+				Text = table.concat(tags, " "),
+				Parent = frame,
+			})
+		end
 		if item.size >= BIG_SIZE then
 			Ui.label({
 				AnchorPoint = Vector2.new(1, 0),
@@ -168,8 +193,8 @@ local function render()
 	Ui.clear(grid)
 	showEmpty(nil)
 	local layout = grid:FindFirstChildWhichIsA("UIGridLayout") :: UIGridLayout
-	-- Seed cards need room for the Equip button.
-	layout.CellSize = if activeTab == "Seeds" then UDim2.fromOffset(112, 140) else UDim2.fromOffset(112, 112)
+	-- Seed cards need room for the Equip button, squishy cards for mutation tags.
+	layout.CellSize = if activeTab == "Seeds" then UDim2.fromOffset(112, 140) else UDim2.fromOffset(112, 126)
 	if activeTab == "Squishies" then
 		renderSquishies(state)
 	else

@@ -19,15 +19,31 @@ local function step(x: number): number
 	return x
 end
 
+-- 32-bit multiply (mod 2^32) without losing precision in doubles.
+local function mul32(a: number, b: number): number
+	local high = a // 65536
+	local low = a % 65536
+	return ((high * b) % 65536 * 65536 + low * b) % 4294967296
+end
+
+-- MurmurHash3's finalizer. Scrambles nearby seeds (window 1, 2, 3, ...) into
+-- unrelated states; xorshift alone is linear and keeps them correlated.
+local function mix(h: number): number
+	h = bit32.bxor(h, bit32.rshift(h, 16))
+	h = mul32(h, 0x85EBCA6B)
+	h = bit32.bxor(h, bit32.rshift(h, 13))
+	h = mul32(h, 0xC2B2AE35)
+	h = bit32.bxor(h, bit32.rshift(h, 16))
+	return h
+end
+
 function Rng.new(seed: number): Rng
-	-- Fold the seed into 32 bits; xorshift must never hold a zero state.
-	local state = bit32.bxor(seed % 4294967296, 0x9E3779B9)
+	local low = seed % 4294967296
+	local high = (seed // 4294967296) % 4294967296
+	local state = mix(bit32.bxor(mix(low), high, 0x9E3779B9))
+	-- xorshift must never hold a zero state.
 	if state == 0 then
 		state = 0x6D2B79F5
-	end
-	-- Warm up so consecutive seeds do not produce correlated first values.
-	for _ = 1, 16 do
-		state = step(state)
 	end
 	return setmetatable({ _state = state }, Rng) :: any
 end

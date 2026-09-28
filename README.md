@@ -10,12 +10,18 @@ and roadmap.
 
 ## What works right now
 
-- 6-player servers, each player gets a fenced 24-tile plot with their name on it
-- A candy-pastel world: terrain meadow and hills, pond, cotton-candy trees,
+- 6-player servers, each player gets a fenced 64-tile plot (two garden beds)
+  with their name on it
+- A flat, cartoon-style pastel world: meadow and hills, pond, cotton-candy trees,
   lollipop lamps, market stalls, giant squishy statues, soft lighting
-- Squishies are soft rounded blobs with faces that grow, bounce, and
-  sparkle when ready
-- 11 squishies across 7 rarities (Common → Celestial)
+- Plants grow, bounce and sparkle when ready; baos and cubes have kawaii
+  faces, butter has a printed label, keycaps show letters
+- 15 plants in four families (bao squishies, squish cubes, butter, keycaps)
+  across 7 rarities (Common → Celestial)
+- Mutations (Glitter, Slimy, Frozen, Gold, Rainbow, Starstruck) that
+  multiply value, and global weather events (Slime Rain, Freeze Snap,
+  Glitter Storm, Starfall with shooting stars). In Studio, weather runs
+  every 2 minutes so you can test it
 - Real-time growth that continues while offline
 - Single-harvest and **regrowing** (multi-harvest) squishies
 - Random harvest size (0.8x–2.0x, skewed so big ones are rare); value scales with size²
@@ -78,15 +84,19 @@ src/
       Squishies.luau  the item catalog: prices, grow times, rarity, stock odds
       Rarities.luau   rarity tiers and colors
       Economy.luau    global tuning: starting coins, restock timer, plot size
+      Mutations.luau  mutation multipliers and chances
+      Weather.luau    weather events, schedule timing
     Growth.luau       growth progress, harvest size, sell value math
     ShopStock.luau    deterministic shop restock rolls
     Rng.luau          deterministic PRNG so every server rolls the same shop
+    WeatherSchedule.luau  global weather timetable
     Remotes.luau      all client/server network events
     Types.luau        saved data and client state shapes
   server/             → ServerScriptService.Server
     World/
       Build.luau      map building blocks: parts, fences, faces, squishy blobs
-      Scenery.luau    terrain, lighting, trees, lamps, statues, clouds
+      Scenery.luau    ground, hills, pond, lighting, trees, lamps, statues, clouds
+      SquishyModels.luau  3D look of each plant family (faces, labels, keycaps)
     Services/
       DataService     load/save/session-lock player data
       WorldService    builds the placeholder map
@@ -95,6 +105,7 @@ src/
       ShopService     seed purchases, restock announcements
       SellService     sell stand
       TravelService   Garden / Seeds / Sell travel buttons
+      WeatherService  global weather schedule and weather mutations
     Sync.luau         sends each player their state
     RateLimit.luau    remote spam protection
   client/             → StarterPlayerScripts.Client
@@ -115,7 +126,7 @@ tests. They check that every squishy is profitable, that the catalog is sorted
 by rarity and price, and that a new player can't soft-lock.
 
 **Change the look:** the map is built in code from Roblox's built-in parts,
-meshes, terrain and lighting (no uploaded assets). Layout and plots live in
+meshes and lighting (no uploaded assets). Layout and plots live in
 `WorldService`, decorations and lighting in `World/Scenery.luau`, and plants
 in `GardenService` (`spawnPlant`). Keep the instance
 names and attributes the client relies on (`TileIndex`, `OwnerUserId`,

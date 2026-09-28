@@ -143,28 +143,100 @@ function Ui.button(text: string, color: Color3, props: { [string]: any }): TextB
 	return button
 end
 
--- Placeholder icon for a squishy: a glossy blob in its color and rough shape.
--- Replace with ImageLabels once icon art exists.
+local function roundDot(position: UDim2, size: UDim2, color: Color3, transparency: number?): Frame
+	return Ui.create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = position,
+		Size = size,
+		BackgroundColor3 = color,
+		BackgroundTransparency = transparency or 0,
+		BorderSizePixel = 0,
+	}, { Ui.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }) })
+end
+
+-- Mini kawaii face: two eyes, a smile and blush.
+local function miniFace(): Frame
+	local ink = Color3.fromRGB(40, 25, 35)
+	local blush = Color3.fromRGB(255, 130, 160)
+	return Ui.create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.58),
+		Size = UDim2.fromScale(0.7, 0.5),
+		BackgroundTransparency = 1,
+	}, {
+		roundDot(UDim2.fromScale(0.3, 0.4), UDim2.fromScale(0.14, 0.26), ink),
+		roundDot(UDim2.fromScale(0.7, 0.4), UDim2.fromScale(0.14, 0.26), ink),
+		roundDot(UDim2.fromScale(0.5, 0.66), UDim2.fromScale(0.14, 0.1), ink),
+		roundDot(UDim2.fromScale(0.13, 0.66), UDim2.fromScale(0.2, 0.14), blush, 0.3),
+		roundDot(UDim2.fromScale(0.87, 0.66), UDim2.fromScale(0.2, 0.14), blush, 0.3),
+	})
+end
+
+-- UI icon for a squishy, drawn to match its 3D look: bao buns, jelly cubes,
+-- butter sticks and keycaps.
 function Ui.squishyIcon(def: Squishies.SquishyDef, props: { [string]: any }): Frame
-	local radius = if def.shape == "Ball" then UDim.new(0.5, 0) else UDim.new(0.25, 0)
-	local merged: { [string]: any } = { BackgroundColor3 = Ui.rgb(def.color) }
+	local color = Ui.rgb(def.color)
+	local accent = if def.accent then Ui.rgb(def.accent) else Ui.Colors.Text
+	local merged: { [string]: any } = {
+		BackgroundColor3 = color,
+		BackgroundTransparency = if def.material == "Glass" then 0.15 else 0,
+	}
 	for key, value in props do
 		merged[key] = value
 	end
-	return Ui.create("Frame", merged, {
-		Ui.create("UICorner", { CornerRadius = radius }),
-		Ui.stroke(Ui.Colors.Outline, 2),
-		Ui.create("UIAspectRatioConstraint", {
-			AspectRatio = if def.shape == "Cylinder" then 0.8 else 1,
-		}),
-		-- Highlight dot for a soft, shiny look.
-		Ui.create("Frame", {
-			Size = UDim2.fromScale(0.28, 0.2),
-			Position = UDim2.fromScale(0.2, 0.16),
-			BackgroundColor3 = Ui.Colors.White,
-			BackgroundTransparency = if def.material == "Glass" or def.material == "Neon" then 0.2 else 0.45,
-		}, { Ui.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }) }),
-	})
+
+	local children: { any } = { Ui.stroke(Ui.Colors.Outline, 2) }
+	if def.kind == "bao" then
+		table.insert(children, Ui.create("UICorner", { CornerRadius = UDim.new(0.45, 0) }))
+		table.insert(children, Ui.create("UIAspectRatioConstraint", { AspectRatio = 1.15 }))
+		table.insert(children, miniFace())
+	elseif def.kind == "cube" then
+		table.insert(children, Ui.create("UICorner", { CornerRadius = UDim.new(0.22, 0) }))
+		table.insert(children, Ui.create("UIAspectRatioConstraint", { AspectRatio = 1 }))
+		table.insert(children, miniFace())
+		table.insert(children, roundDot(UDim2.fromScale(0.28, 0.2), UDim2.fromScale(0.22, 0.12), Ui.Colors.White, 0.3))
+	elseif def.kind == "butter" then
+		table.insert(children, Ui.create("UICorner", { CornerRadius = UDim.new(0.2, 0) }))
+		table.insert(children, Ui.create("UIAspectRatioConstraint", { AspectRatio = 2.2 }))
+		table.insert(
+			children,
+			Ui.create("TextLabel", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromScale(0.8, 0.5),
+				BackgroundTransparency = 1,
+				Font = Ui.Font,
+				TextScaled = true,
+				TextColor3 = accent,
+				Text = def.label or "BUTTER",
+			})
+		)
+	else
+		-- Keycap: body with a lighter dished top and a letter.
+		table.insert(children, Ui.create("UICorner", { CornerRadius = UDim.new(0.2, 0) }))
+		table.insert(children, Ui.create("UIAspectRatioConstraint", { AspectRatio = 1 }))
+		table.insert(
+			children,
+			Ui.create("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.45),
+				Size = UDim2.fromScale(0.68, 0.62),
+				BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.3),
+				BorderSizePixel = 0,
+			}, {
+				Ui.create("UICorner", { CornerRadius = UDim.new(0.2, 0) }),
+				Ui.create("TextLabel", {
+					Size = UDim2.fromScale(1, 1),
+					BackgroundTransparency = 1,
+					Font = Ui.Font,
+					TextScaled = true,
+					TextColor3 = accent,
+					Text = string.upper(string.sub(def.name, 1, 1)),
+				}),
+			})
+		)
+	end
+	return Ui.create("Frame", merged, children)
 end
 
 -- Removes every child except layouts, paddings and other UI modifiers.
