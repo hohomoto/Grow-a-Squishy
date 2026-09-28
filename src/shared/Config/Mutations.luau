@@ -7,7 +7,8 @@
 --
 -- Stacking is additive, so a Gold (x15) + Frozen (x5) plant is worth
 -- 1 + 14 + 4 = x19, not x75. Mutations sharing a `group` are exclusive: a
--- plant keeps only the most valuable one (Rainbow replaces Gold).
+-- plant keeps only the most valuable one (Rainbow replaces Gold, Huge
+-- replaces Big).
 
 export type MutationDef = {
 	id: string,
@@ -16,9 +17,49 @@ export type MutationDef = {
 	color: { number },
 	baseChance: number?,
 	group: string?,
+	-- Visual size multiplier on the plot (size mutations only).
+	scale: number?,
 }
 
 local List: { MutationDef } = {
+	-- Size mutations change how big the plant grows on the plot (`scale`).
+	{
+		id = "Mini",
+		name = "Mini",
+		multiplier = 1.5,
+		color = { 255, 190, 235 },
+		baseChance = 0.04,
+		group = "Size",
+		scale = 0.65,
+	},
+	{
+		id = "Big",
+		name = "Big",
+		multiplier = 2,
+		color = { 255, 175, 90 },
+		baseChance = 0.06,
+		group = "Size",
+		scale = 1.35,
+	},
+	{
+		id = "Huge",
+		name = "Huge",
+		multiplier = 4,
+		color = { 255, 130, 70 },
+		baseChance = 0.015,
+		group = "Size",
+		scale = 1.75,
+	},
+	{
+		id = "Colossal",
+		name = "Colossal",
+		multiplier = 10,
+		color = { 255, 80, 80 },
+		baseChance = 0.003,
+		group = "Size",
+		scale = 2.5,
+	},
+	-- Special mutations.
 	{ id = "Glitter", name = "Glitter", multiplier = 2, color = { 255, 170, 230 }, baseChance = 0.02 },
 	{ id = "Slimy", name = "Slimy", multiplier = 3, color = { 120, 230, 90 } },
 	{ id = "Frozen", name = "Frozen", multiplier = 5, color = { 150, 220, 255 } },
@@ -112,6 +153,20 @@ function Mutations.names(ids: { string }?): string
 		end
 	end
 	return table.concat(names, " ")
+end
+
+-- How much bigger (or smaller) the plant looks on the plot.
+function Mutations.scale(ids: { string }?): number
+	local scale = 1
+	if ids then
+		for _, id in ids do
+			local def = ById[id]
+			if def and def.scale then
+				scale *= def.scale
+			end
+		end
+	end
+	return scale
 end
 
 -- The most valuable mutation in the list, for picking a highlight color.

@@ -44,35 +44,56 @@ Buy seeds (Seed Shop) → Plant on your plot → Wait (online or offline)
 
 ### Catalog (current balance)
 
-Four plant families, each with its own 3D look:
+Six plant families, each with its own 3D look:
 
-- **Bao squishies** — round steamed buns with kawaii faces
-- **Squish cubes** — see-through jelly cubes with faces (generic name on
+- **Bao squishies**: round steamed buns with kawaii faces
+- **Squish cubes**: see-through jelly cubes with faces (generic name on
   purpose: "NeeDoh"/"Nice Cube" are Schylling trademarks)
-- **Butter** — squishy butter sticks with a printed label
-- **Keycaps** — ASMR keyboard keys with letters; they all regrow ("plant a
-  keyboard, keys keep popping up")
+- **Butter**: squishy butter sticks with a printed label
+- **Keycaps**: ASMR keyboard keys with letters; they all regrow
+- **Slime**: glossy slime blobs
+- **Pop-its**: fidget pads with a grid of bubbles (some with rainbow rows)
 
 | Plant | Family | Rarity | Seed | Grow | Regrow | Base value | Shop chance |
 |---|---|---|---|---|---|---|---|
 | Mochi Bao | bao | Common | 10 | 0:30 | – | 18 | 100% |
+| Pastel Pop-It | popit | Common | 18 | 0:35 | – | 30 | 100% |
 | Butter Stick | butter | Common | 25 | 0:45 | – | 40 | 100% |
+| Cloud Slime | slime | Common | 35 | 0:50 | – | 55 | 100% |
 | Wood Keycap | keycap | Common | 50 | 1:00 | 0:30 | 12 | 100% |
 | Squish Cube | cube | Uncommon | 120 | 1:30 | – | 210 | 85% |
+| Matcha Bao | bao | Uncommon | 150 | 2:00 | 0:50 | 35 | 80% |
 | Peach Bao | bao | Uncommon | 200 | 2:30 | 1:00 | 45 | 80% |
+| Rainbow Pop-It | popit | Uncommon | 260 | 2:30 | – | 420 | 75% |
 | Salted Butter Block | butter | Uncommon | 350 | 3:00 | – | 600 | 70% |
-| Clicky Keycap | keycap | Rare | 700 | 4:00 | 1:00 | 110 | 50% |
+| Butter Slime | slime | Uncommon | 420 | 3:20 | – | 700 | 65% |
+| Clicky Keycap | keycap | Rare | 700 | 4:00 | 1:00 | 110 | 55% |
+| Gummy Cube | cube | Rare | 900 | 4:40 | – | 1.5K | 50% |
+| Strawberry Bao | bao | Rare | 1.1K | 5:00 | 1:10 | 150 | 45% |
 | Glitter Cube | cube | Rare | 1.5K | 6:00 | – | 2.6K | 40% |
+| Whipped Butter | butter | Rare | 1.8K | 6:20 | 1:20 | 240 | 35% |
+| Crystal Clear Slime | slime | Rare | 2.2K | 7:00 | – | 3.8K | 30% |
 | Galaxy Bao | bao | Epic | 4K | 8:00 | 1:30 | 380 | 25% |
+| Jumbo Pop-It | popit | Epic | 5.5K | 9:00 | 1:40 | 520 | 22% |
+| Mint Choco Bao | bao | Epic | 7K | 10:00 | 1:50 | 650 | 20% |
 | RGB Keycap | keycap | Epic | 9K | 10:00 | 2:00 | 700 | 18% |
+| Glow Slime | slime | Epic | 12K | 11:00 | 2:00 | 1.1K | 15% |
 | Honey Butter | butter | Legendary | 25K | 15:00 | 3:00 | 1.8K | 10% |
+| Holo Keycap | keycap | Legendary | 38K | 16:40 | 3:10 | 2.6K | 9% |
+| Cotton Candy Bao | bao | Legendary | 45K | 18:20 | 3:20 | 3K | 8% |
 | Crystal Cube | cube | Legendary | 60K | 20:00 | 3:20 | 3.8K | 7% |
+| Galaxy Slime | slime | Legendary | 90K | 22:30 | 3:40 | 5.4K | 6% |
 | Artisan Keycap | keycap | Mythic | 150K | 30:00 | 4:00 | 8K | 5% |
+| Golden Pop-It | popit | Mythic | 220K | 33:20 | 4:20 | 11K | 4% |
 | Dragon Bao | bao | Mythic | 400K | 40:00 | 5:00 | 18K | 3% |
+| Molten Cube | cube | Mythic | 550K | 46:40 | 5:20 | 24K | 2.5% |
 | Starlight Bao | bao | Celestial | 1.2M | 1:00:00 | 6:00 | 50K | 1.5% |
+| Aurora Slime | slime | Celestial | 2.5M | 1:15:00 | 7:00 | 90K | 1% |
+| Cosmic Keycap | keycap | Celestial | 4M | 1:30:00 | 8:00 | 130K | 0.7% |
+| Moonbeam Butter | butter | Celestial | 6M | 1:50:00 | 9:00 | 180K | 0.5% |
 
-At a 1.5% chance per 5-minute restock, a Starlight Bao appears about once
-every 5.5 hours on average. Tune these before launch using real playtest data.
+The rarest item, Moonbeam Butter (0.5% per 5-minute restock), shows up
+about once every 17 hours on average. Tune these using real playtest data.
 
 ### Mutations
 
@@ -81,12 +102,19 @@ stack additively.
 
 | Mutation | Multiplier | Source |
 |---|---|---|
+| Mini | x1.5 | 4% at planting; grows 0.65x as big |
+| Big | x2 | 6% at planting; grows 1.35x as big |
+| Huge | x4 | 1.5% at planting; grows 1.75x as big |
+| Colossal | x10 | 0.3% at planting; grows 2.5x as big |
 | Glitter | x2 | 2% chance at planting; Glitter Storm |
 | Slimy | x3 | Slime Rain |
 | Frozen | x5 | Freeze Snap |
 | Gold | x15 | 0.5% chance at planting |
 | Rainbow | x40 | 0.1% chance at planting (replaces Gold) |
 | Starstruck | x60 | Hit by a shooting star during Starfall |
+
+Size mutations are exclusive (a plant keeps the biggest), as are Gold and
+Rainbow. Everything else stacks.
 
 Mutated plants are tinted (gold, cycling rainbow, icy, slimy, starry), give
 off particles and show colored tags. Harvests of x15 or more are announced to
@@ -173,7 +201,8 @@ Built: see the Mutations and Weather sections above.
 
 ## Viral checklist
 
-- [ ] ASMR sound for every harvest, different per squishy (the #1 priority for this theme)
+- [x] Sound effects for harvest, planting, buying, selling, weather (synthesized; see README)
+- [ ] Unique ASMR sound per plant family (the #1 priority for this theme)
 - [ ] A satisfying squish animation plus particles on harvest
 - [ ] Thumbnail and icon: a giant glittery squishy in someone's hand
 - [ ] Weather events designed to be clipped: big sky changes, loud audio cues

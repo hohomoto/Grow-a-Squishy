@@ -1,6 +1,14 @@
 --!strict
 -- Client entry point. Controllers start in dependency order.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Sfx = require(script.Sfx)
+
+-- Gameplay sounds the server asks for (harvest, plant, buy, sell, ...).
+Remotes.Sfx.OnClientEvent:Connect(Sfx.play)
+
 local Controllers = script.Controllers
 local ORDER = {
 	"Toasts",

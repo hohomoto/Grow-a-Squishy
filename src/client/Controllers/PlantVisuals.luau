@@ -32,7 +32,7 @@ local SLIME = mutationColor("Slimy")
 local STAR = mutationColor("Starstruck")
 
 -- Per-plant cache so mutation effects are only rebuilt when they change.
-type Effects = { raw: string, ids: { string }, has: { [string]: boolean }, tags: string }
+type Effects = { raw: string, ids: { string }, has: { [string]: boolean }, tags: string, scale: number }
 local effects: { [BasePart]: Effects } = setmetatable({}, { __mode = "k" }) :: any
 
 local PlantVisuals = {}
@@ -83,7 +83,7 @@ local function buildEffects(part: BasePart, raw: string): Effects
 	end
 	part.Reflectance = if has.Gold or has.Frozen then 0.25 else 0
 
-	local cached = { raw = raw, ids = ids, has = has, tags = table.concat(tags, " ") }
+	local cached = { raw = raw, ids = ids, has = has, tags = table.concat(tags, " "), scale = Mutations.scale(ids) }
 	effects[part] = cached
 	return cached
 end
@@ -132,7 +132,8 @@ local function update(part: BasePart, now: number, localUserId: number)
 
 	local ready = Growth.isReady(readyAt, now)
 	local progress = Growth.progress(startedAt, readyAt, now)
-	local size = fullSize * (SEEDLING_SCALE + (1 - SEEDLING_SCALE) * progress)
+	-- Size mutations (Mini / Big / Huge / Colossal) change the grown size.
+	local size = fullSize * fx.scale * (SEEDLING_SCALE + (1 - SEEDLING_SCALE) * progress)
 	local squash = Vector3.one
 	if ready then
 		-- Squash and stretch: wider when shorter, like a squishy being pressed.

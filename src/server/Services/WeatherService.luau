@@ -51,6 +51,7 @@ local function tellOwner(player: Player, plantId: string, mutationId: string)
 	local mutation = Mutations.ById[mutationId]
 	if def and mutation and mutation.multiplier >= NOTIFY_MULTIPLIER then
 		Sync.notify(player, `Your {def.name} turned {mutation.name} (x{mutation.multiplier})!`)
+		Sync.sfx(player, "Sparkle")
 	end
 end
 

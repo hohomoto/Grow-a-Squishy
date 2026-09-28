@@ -11,6 +11,7 @@ local EVENT_NAMES = {
 	"StateUpdated", -- (state: ClientState)
 	"Notify", -- (message: string)
 	"StarStrike", -- (position: Vector3) a shooting star hit a plant
+	"Sfx", -- (soundName: string) play a sound effect (Config/Sounds)
 	-- Client -> server
 	"RequestState", -- ()
 	"PlantSeed", -- (tileIndex: number, squishyId: string)
@@ -41,6 +42,7 @@ return {
 	StateUpdated = get("StateUpdated"),
 	Notify = get("Notify"),
 	StarStrike = get("StarStrike"),
+	Sfx = get("Sfx"),
 	RequestState = get("RequestState"),
 	PlantSeed = get("PlantSeed"),
 	RemovePlant = get("RemovePlant"),

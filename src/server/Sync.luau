@@ -83,4 +83,9 @@ function Sync.notify(player: Player, message: string)
 	Remotes.Notify:FireClient(player, message)
 end
 
+-- Plays a sound effect (a key of Config/Sounds) for one player.
+function Sync.sfx(player: Player, sound: string)
+	Remotes.Sfx:FireClient(player, sound)
+end
+
 return Sync

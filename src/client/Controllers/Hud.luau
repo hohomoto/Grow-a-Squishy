@@ -40,6 +40,7 @@ local coinsLabel: TextLabel
 local bagLabel: TextLabel
 local bagFill: Frame
 local restockLabel: TextLabel
+local statusStack: Frame
 local hotbar: ScrollingFrame
 -- Tool ids in hotbar order, so number keys can select them.
 local slotTools: { string } = {}
@@ -129,21 +130,74 @@ local function renderTop(state: Types.ClientState)
 	bagFill.BackgroundColor3 = if full then Ui.Colors.Bad else Ui.Colors.Info
 end
 
-local function buildTop(gui: ScreenGui)
-	local top = Ui.create("Frame", {
-		Name = "Top",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 6),
-		Size = UDim2.fromOffset(280, 92),
+-- Phones and tablets: the bottom-left corner belongs to the thumbstick.
+local function isTouchOnly(): boolean
+	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
+local function pill(order: number, height: number): Frame
+	return Ui.create("Frame", {
+		Size = UDim2.new(1, 0, 0, height),
+		BackgroundColor3 = Ui.Colors.Outline,
+		BackgroundTransparency = 0.25,
+		LayoutOrder = order,
+		Parent = statusStack,
+	}, { Ui.corner(height // 2) })
+end
+
+-- Status panel: weather (added by WeatherFx), restock timer, backpack meter
+-- and coins, stacked in the bottom-left corner (top-left on touch screens).
+local function buildStatus(gui: ScreenGui)
+	local touch = isTouchOnly()
+	statusStack = Ui.create("Frame", {
+		Name = "Status",
+		AnchorPoint = if touch then Vector2.new(0, 0) else Vector2.new(0, 1),
+		Position = if touch then UDim2.fromOffset(12, 8) else UDim2.new(0, 12, 1, -12),
+		Size = UDim2.fromOffset(220, 150),
 		BackgroundTransparency = 1,
 		Parent = gui,
+	}, {
+		Ui.create("UIListLayout", {
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalAlignment = if touch then Enum.VerticalAlignment.Top else Enum.VerticalAlignment.Bottom,
+			Padding = UDim.new(0, 6),
+		}),
 	})
 
-	-- Coin pill
+	local restock = pill(1, 24)
+	restockLabel = Ui.label({
+		Position = UDim2.fromOffset(10, 3),
+		Size = UDim2.new(1, -20, 1, -6),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "",
+		Parent = restock,
+	})
+
+	local meter = Ui.create("Frame", {
+		Size = UDim2.new(1, 0, 0, 22),
+		BackgroundColor3 = Ui.Colors.PanelAlt,
+		ClipsDescendants = true,
+		LayoutOrder = 2,
+		Parent = statusStack,
+	}, { Ui.corner(11), Ui.stroke(Ui.Colors.Outline, 2) })
+	bagFill = Ui.create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Ui.Colors.Info,
+		BorderSizePixel = 0,
+		Parent = meter,
+	}, { Ui.corner(11) })
+	bagLabel = Ui.label({
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		ZIndex = 2,
+		Parent = meter,
+	})
+
 	local coinPill = Ui.create("Frame", {
 		Size = UDim2.new(1, 0, 0, 44),
 		BackgroundColor3 = Ui.Colors.Panel,
-		Parent = top,
+		LayoutOrder = 3,
+		Parent = statusStack,
 	}, { Ui.corner(22), Ui.stroke(Ui.Colors.Outline, 3) })
 	Ui.create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -164,41 +218,20 @@ local function buildTop(gui: ScreenGui)
 		Text = "...",
 		Parent = coinPill,
 	})
+end
 
-	-- Backpack meter
-	local meter = Ui.create("Frame", {
-		Position = UDim2.fromOffset(20, 50),
-		Size = UDim2.new(1, -40, 0, 20),
-		BackgroundColor3 = Ui.Colors.PanelAlt,
-		ClipsDescendants = true,
-		Parent = top,
-	}, { Ui.corner(10), Ui.stroke(Ui.Colors.Outline, 2) })
-	bagFill = Ui.create("Frame", {
-		Size = UDim2.fromScale(0, 1),
-		BackgroundColor3 = Ui.Colors.Info,
-		BorderSizePixel = 0,
-		Parent = meter,
-	}, { Ui.corner(10) })
-	bagLabel = Ui.label({
-		Size = UDim2.fromScale(1, 1),
-		Text = "",
-		ZIndex = 2,
-		Parent = meter,
-	})
-
-	restockLabel = Ui.label({
-		Position = UDim2.fromOffset(0, 72),
-		Size = UDim2.new(1, 0, 0, 18),
-		Text = "",
-		Parent = top,
-	})
+-- The status panel, so other controllers (weather) can add rows to it.
+function Hud.getStatusStack(): Frame
+	return statusStack
 end
 
 local function buildMenu(gui: ScreenGui)
 	local menu = Ui.create("Frame", {
 		Name = "Menu",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 10, 0.5, 0),
+		-- Left edge on computers; right edge on touch screens, where the
+		-- status panel takes the top-left corner.
+		AnchorPoint = if isTouchOnly() then Vector2.new(1, 0.5) else Vector2.new(0, 0.5),
+		Position = if isTouchOnly() then UDim2.new(1, -10, 0.5, 0) else UDim2.new(0, 10, 0.5, 0),
 		Size = UDim2.fromOffset(MENU_BUTTON_SIZE, (MENU_BUTTON_SIZE + 8) * 4),
 		BackgroundTransparency = 1,
 		Parent = gui,
@@ -254,7 +287,7 @@ function Hud.Start()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 
 	local gui = Ui.screenGui("Hud")
-	buildTop(gui)
+	buildStatus(gui)
 	buildMenu(gui)
 
 	-- Scrolls sideways when a player owns more seed types than fit. Kept to the
@@ -263,7 +296,8 @@ function Hud.Start()
 		Name = "Hotbar",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -6),
-		Size = UDim2.new(0.62, 0, 0, SLOT_SIZE + 16),
+		-- Narrower on computers so it clears the bottom-left status panel.
+		Size = UDim2.new(if isTouchOnly() then 0.62 else 0.5, 0, 0, SLOT_SIZE + 16),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollingDirection = Enum.ScrollingDirection.X,

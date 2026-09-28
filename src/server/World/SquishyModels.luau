@@ -17,6 +17,8 @@ SquishyModels.Proportions = {
 	cube = Vector3.new(0.9, 0.9, 0.9),
 	butter = Vector3.new(1.45, 0.55, 0.7),
 	keycap = Vector3.new(1, 0.6, 1),
+	slime = Vector3.new(1, 0.6, 1),
+	popit = Vector3.new(1, 0.22, 1),
 } :: { [string]: Vector3 }
 
 -- Keycaps on a plot spell out letters in tile order.
@@ -148,6 +150,34 @@ function SquishyModels.statue(parent: Instance, ground: Vector3, size: number, c
 	return part
 end
 
+-- Glossy highlights on top of a slime blob.
+local function slimeShine(part: BasePart)
+	local gui = surface(part, Enum.NormalId.Top, Vector2.new(100, 100))
+	gui.Name = "Shine"
+	dot(gui, UDim2.fromScale(0.35, 0.32), UDim2.fromScale(0.28, 0.16), Color3.new(1, 1, 1), 0.35)
+	dot(gui, UDim2.fromScale(0.62, 0.62), UDim2.fromScale(0.12, 0.12), Color3.new(1, 1, 1), 0.45)
+	dot(gui, UDim2.fromScale(0.3, 0.66), UDim2.fromScale(0.08, 0.08), Color3.new(1, 1, 1), 0.5)
+end
+
+-- 4x4 grid of pop-it bubbles on the top face.
+local function popitBubbles(part: BasePart, def: Squishies.SquishyDef)
+	local gui = surface(part, Enum.NormalId.Top, Vector2.new(100, 100))
+	gui.Name = "Bubbles"
+	local base = rgb(def.color)
+	for row = 1, 4 do
+		local rowColor = if def.rainbow then Color3.fromHSV((row - 1) / 4, 0.45, 1) else base
+		for column = 1, 4 do
+			local position = UDim2.fromScale(0.14 + (column - 1) * 0.24, 0.14 + (row - 1) * 0.24)
+			local bubble = dot(gui, position, UDim2.fromScale(0.19, 0.19), rowColor:Lerp(Color3.new(0, 0, 0), 0.12))
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = rowColor:Lerp(Color3.new(0, 0, 0), 0.3)
+			stroke.Thickness = 2
+			stroke.Parent = bubble
+			dot(bubble, UDim2.fromScale(0.35, 0.3), UDim2.fromScale(0.35, 0.3), Color3.new(1, 1, 1), 0.3)
+		end
+	end
+end
+
 -- Returns an unparented, anchored part dressed as `def`. The caller sets its
 -- size and position.
 function SquishyModels.create(def: Squishies.SquishyDef, tileIndex: number): Part
@@ -176,6 +206,13 @@ function SquishyModels.create(def: Squishies.SquishyDef, tileIndex: number): Par
 		butterLabel(part, def, proportions)
 	elseif def.kind == "keycap" then
 		keycapTop(part, def, tileIndex)
+	elseif def.kind == "slime" then
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Head
+		mesh.Parent = part
+		slimeShine(part)
+	elseif def.kind == "popit" then
+		popitBubbles(part, def)
 	end
 	return part
 end

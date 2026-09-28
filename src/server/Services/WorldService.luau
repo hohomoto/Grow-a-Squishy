@@ -33,12 +33,14 @@ local PLOT_DEPTH = BED_DEPTH * 2 + BED_GAP + PLOT_PADDING * 2
 local PATH_HALF_LENGTH = (PLOT_DEPTH * 3 + PLOT_SPACING * 4) / 2
 local STAND_Z = (PLOT_DEPTH + PLOT_SPACING) / 2
 
-local WHITE = Color3.fromRGB(255, 255, 255)
+-- Warm cream instead of pure white, which blows out in bright light.
+local WHITE = Color3.fromRGB(255, 243, 228)
 -- A shade darker than the meadow so plots stand out.
-local GRASS = Color3.fromRGB(120, 200, 95)
+local GRASS = Color3.fromRGB(95, 180, 80)
 local GOLD = Color3.fromRGB(255, 205, 60)
-local SOIL = Color3.fromRGB(110, 75, 55)
-local PATH_COLOR = Color3.fromRGB(255, 212, 228)
+local SOIL = Color3.fromRGB(105, 70, 50)
+local PATH_COLOR = Color3.fromRGB(232, 196, 158)
+local CURB_COLOR = Color3.fromRGB(205, 160, 125)
 -- One accent per plot, used for its fence rails, frame and sign.
 local PLOT_ACCENTS = {
 	Color3.fromRGB(255, 150, 200),
@@ -153,7 +155,7 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 					originZ + rowInBed * TILE_STEP + bed * (BED_DEPTH + BED_GAP)
 				),
 				-- Checkerboard shading so individual tiles are easy to see.
-				Color = if (row + column) % 2 == 0 then Color3.fromRGB(165, 110, 75) else Color3.fromRGB(150, 98, 66),
+				Color = if (row + column) % 2 == 0 then Color3.fromRGB(150, 100, 65) else Color3.fromRGB(135, 90, 58),
 				Parent = tiles,
 			})
 			tile:SetAttribute("TileIndex", tileIndex)
@@ -219,7 +221,7 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 		Color = accent,
 		Parent = plot,
 	})
-	Build.billboard(board, "Empty Plot", 2.8)
+	Build.billboard(board, "Empty Plot", 2.8, nil, 70)
 
 	plot.Parent = parent
 	return plot
@@ -295,6 +297,39 @@ local function buildStall(
 	return model, prompt
 end
 
+-- Two-tier fountain topped with a mochi, spraying sparkly water.
+local function buildFountain(parent: Instance, ground: Vector3)
+	local model = Instance.new("Model")
+	model.Name = "Fountain"
+	local water = Color3.fromRGB(110, 200, 255)
+	Build.column(model, ground, 1.4, 10, WHITE)
+	Build.column(model, ground + Vector3.new(0, 1.4, 0), 0.1, 9, water, { Transparency = 0.15, Reflectance = 0.2 })
+	Build.column(model, ground, 4, 1.4, Color3.fromRGB(255, 190, 215))
+	Build.column(model, ground + Vector3.new(0, 4, 0), 0.7, 5, WHITE)
+	Build.column(model, ground + Vector3.new(0, 4.7, 0), 0.1, 4.2, water, { Transparency = 0.15, Reflectance = 0.2 })
+	local mascot = SquishyModels.statue(
+		model,
+		ground + Vector3.new(0, 4.7, 0),
+		2.6,
+		Color3.fromRGB(255, 215, 230),
+		Vector3.new(0, 5, 20)
+	)
+
+	local spray = Instance.new("ParticleEmitter")
+	spray.Color = ColorSequence.new(Color3.fromRGB(190, 235, 255), Color3.fromRGB(255, 255, 255))
+	spray.LightEmission = 0.4
+	spray.Size = NumberSequence.new(0.35, 0.1)
+	spray.Transparency = NumberSequence.new(0.2, 0.8)
+	spray.Speed = NumberRange.new(9, 12)
+	spray.Acceleration = Vector3.new(0, -24, 0)
+	spray.SpreadAngle = Vector2.new(22, 22)
+	spray.Lifetime = NumberRange.new(0.9, 1.2)
+	spray.Rate = 45
+	spray.EmissionDirection = Enum.NormalId.Top
+	spray.Parent = mascot
+	model.Parent = parent
+end
+
 local function buildPathAndPlaza(map: Instance)
 	Build.part({
 		Name = "Path",
@@ -308,20 +343,52 @@ local function buildPathAndPlaza(map: Instance)
 			Name = "Curb",
 			Size = Vector3.new(0.8, 0.6, PATH_HALF_LENGTH * 2),
 			Position = Vector3.new(side * (PATH_WIDTH / 2 + 0.4), 0.3, 0),
-			Color = WHITE,
+			Color = CURB_COLOR,
 			Parent = map,
 		})
 	end
 
-	-- Round spawn plaza in the middle of the path.
-	Build.column(map, Vector3.new(0, 0.3, 0), 0.25, 17, WHITE)
-	Build.column(map, Vector3.new(0, 0.3, 0), 0.35, 13, Color3.fromRGB(255, 170, 210))
+	-- Round plaza in the middle of the path with a squishy fountain.
+	Build.column(map, Vector3.new(0, 0.3, 0), 0.25, 20, WHITE)
+	Build.column(map, Vector3.new(0, 0.3, 0), 0.35, 17, Color3.fromRGB(255, 175, 205))
+	buildFountain(map, Vector3.new(0, 0.65, 0))
+
+	-- Benches facing the fountain.
+	for _, angle in { math.rad(45), math.rad(135), math.rad(225), math.rad(315) } do
+		local spot = Vector3.new(math.cos(angle) * 8, 0.65, math.sin(angle) * 8)
+		local facing = CFrame.lookAt(spot, Vector3.new(0, 0.65, 0))
+		Build.part({
+			Name = "BenchSeat",
+			Size = Vector3.new(4, 0.4, 1.4),
+			CFrame = facing * CFrame.new(0, 1.2, 0),
+			Color = Color3.fromRGB(220, 150, 110),
+			Parent = map,
+		})
+		Build.part({
+			Name = "BenchBack",
+			Size = Vector3.new(4, 1.4, 0.3),
+			CFrame = facing * CFrame.new(0, 2, 0.6),
+			Color = Color3.fromRGB(220, 150, 110),
+			Parent = map,
+		})
+		for _, x in { -1.6, 1.6 } do
+			Build.part({
+				Name = "BenchLeg",
+				Size = Vector3.new(0.3, 1, 1.2),
+				CFrame = facing * CFrame.new(x, 0.5, 0),
+				Color = Color3.fromRGB(120, 85, 70),
+				Parent = map,
+			})
+		end
+	end
+
+	-- Spawn just south of the fountain.
 	if not Workspace:FindFirstChildWhichIsA("SpawnLocation", true) then
 		local spawn = Instance.new("SpawnLocation")
 		spawn.Anchored = true
 		spawn.Neutral = true
-		spawn.Size = Vector3.new(8, 0.2, 8)
-		spawn.Position = Vector3.new(0, 0.7, 0)
+		spawn.Size = Vector3.new(6, 0.2, 4)
+		spawn.Position = Vector3.new(0, 0.7, 6.5)
 		spawn.Transparency = 1
 		spawn.Parent = map
 	end

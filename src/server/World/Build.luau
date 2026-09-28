@@ -95,12 +95,20 @@ function Build.beam(
 	return p
 end
 
-function Build.billboard(parent: Instance, text: string, height: number, width: number?): TextLabel
+-- Floating sign. Keep maxDistance small for signs that repeat (plots), so
+-- the screen doesn't fill up with far-away labels.
+function Build.billboard(
+	parent: Instance,
+	text: string,
+	height: number,
+	width: number?,
+	maxDistance: number?
+): TextLabel
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Sign"
 	gui.Size = UDim2.fromOffset(width or 240, 60)
 	gui.StudsOffset = Vector3.new(0, height, 0)
-	gui.MaxDistance = 180
+	gui.MaxDistance = maxDistance or 120
 	gui.LightInfluence = 0
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"

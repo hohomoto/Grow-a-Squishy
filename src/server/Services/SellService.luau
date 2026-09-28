@@ -20,6 +20,7 @@ local function sellAll(player: Player)
 	end
 	if #data.backpack == 0 then
 		Sync.notify(player, "Nothing to sell yet. Go harvest some squishies!")
+		Sync.sfx(player, "Error")
 		return
 	end
 
@@ -37,6 +38,7 @@ local function sellAll(player: Player)
 	data.coins += total
 	data.stats.earned += total
 	Sync.notify(player, `Sold {count} squishies for {Format.commas(total)} coins!`)
+	Sync.sfx(player, "Sell")
 	Sync.push(player)
 end
 

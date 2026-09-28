@@ -36,16 +36,19 @@ local function onBuySeed(player: Player, rawId: unknown)
 	local available = (stock[def.id] or 0) - (data.shop.bought[def.id] or 0)
 	if available <= 0 then
 		Sync.notify(player, def.name .. " is sold out. Check back after the restock!")
+		Sync.sfx(player, "Error")
 		return
 	end
 	if data.coins < def.seedPrice then
 		Sync.notify(player, "Not enough coins for " .. def.name .. ".")
+		Sync.sfx(player, "Error")
 		return
 	end
 
 	data.coins -= def.seedPrice
 	data.shop.bought[def.id] = (data.shop.bought[def.id] or 0) + 1
 	data.seeds[def.id] = (data.seeds[def.id] or 0) + 1
+	Sync.sfx(player, "Coin")
 	Sync.push(player)
 end
 

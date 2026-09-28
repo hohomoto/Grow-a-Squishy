@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Squishies = require(ReplicatedStorage.Shared.Config.Squishies)
+local Sfx = require(script.Parent.Sfx)
 
 local Ui = {}
 
@@ -114,6 +115,9 @@ function Ui.addPressEffect(button: GuiButton)
 			TweenService:Create(scale, info, { Scale = 0.9 }):Play()
 		end
 	end)
+	button.Activated:Connect(function()
+		Sfx.play("Click")
+	end)
 	button.InputEnded:Connect(function(input)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
@@ -211,6 +215,27 @@ function Ui.squishyIcon(def: Squishies.SquishyDef, props: { [string]: any }): Fr
 				Text = def.label or "BUTTER",
 			})
 		)
+	elseif def.kind == "slime" then
+		table.insert(children, Ui.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }))
+		table.insert(children, Ui.create("UIAspectRatioConstraint", { AspectRatio = 1.5 }))
+		table.insert(children, roundDot(UDim2.fromScale(0.32, 0.3), UDim2.fromScale(0.26, 0.2), Ui.Colors.White, 0.3))
+		table.insert(children, roundDot(UDim2.fromScale(0.6, 0.55), UDim2.fromScale(0.1, 0.14), Ui.Colors.White, 0.45))
+	elseif def.kind == "popit" then
+		table.insert(children, Ui.create("UICorner", { CornerRadius = UDim.new(0.18, 0) }))
+		table.insert(children, Ui.create("UIAspectRatioConstraint", { AspectRatio = 1 }))
+		for row = 1, 3 do
+			local rowColor = if def.rainbow then Color3.fromHSV((row - 1) / 3, 0.45, 1) else color
+			for column = 1, 3 do
+				table.insert(
+					children,
+					roundDot(
+						UDim2.fromScale(0.2 + (column - 1) * 0.3, 0.2 + (row - 1) * 0.3),
+						UDim2.fromScale(0.22, 0.22),
+						rowColor:Lerp(Color3.new(0, 0, 0), 0.15)
+					)
+				)
+			end
+		end
 	else
 		-- Keycap: body with a lighter dished top and a letter.
 		table.insert(children, Ui.create("UICorner", { CornerRadius = UDim.new(0.2, 0) }))

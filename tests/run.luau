@@ -277,7 +277,7 @@ end)
 
 -- Catalog sanity ----------------------------------------------------------
 
-local VALID_KINDS = { bao = true, cube = true, butter = true, keycap = true }
+local VALID_KINDS = { bao = true, cube = true, butter = true, keycap = true, slime = true, popit = true }
 local VALID_MATERIALS = { SmoothPlastic = true, Glass = true, Neon = true }
 
 test("Every squishy is well-formed", function()
@@ -397,8 +397,9 @@ test("Mutations.rollBase respects baseChance and only rolls base mutations", fun
 	for _, id in all do
 		assert(Mutations.ById[id].baseChance, id .. " is weather-only and should never roll at planting")
 	end
-	-- Gold and Rainbow share a group, so only Rainbow survives.
-	assert(table.find(all, "Rainbow") and not table.find(all, "Gold"))
+	-- Groups keep only their most valuable member.
+	assert(table.find(all, "Rainbow") and not table.find(all, "Gold"), "Tint group")
+	assert(table.find(all, "Colossal") and not table.find(all, "Big"), "Size group")
 
 	local rng = Rng.new(42)
 	local n, glitter = 50000, 0
@@ -411,6 +412,26 @@ test("Mutations.rollBase respects baseChance and only rolls base mutations", fun
 		end
 	end
 	near(glitter / n, Mutations.ById.Glitter.baseChance :: number, 0.003, "Glitter rate")
+end)
+
+test("Size mutations scale the plant and stay exclusive", function()
+	eq(Mutations.scale(nil), 1)
+	eq(Mutations.scale({ "Glitter" }), 1, "non-size mutations don't resize")
+	eq(Mutations.scale({ "Huge" }), Mutations.ById.Huge.scale)
+	local big = Mutations.add(nil, "Big")
+	local huge = Mutations.add(big, "Huge")
+	eq(#huge, 1)
+	eq(huge[1], "Huge")
+	local _, shrunk = Mutations.add(huge, "Mini")
+	eq(shrunk, false, "a smaller size never replaces a bigger one")
+	eq(Mutations.multiplier({ "Mini" }), 1.5)
+	for _, def in Mutations.List do
+		if def.group == "Size" then
+			assert(def.scale and def.scale > 0, def.id .. " needs a scale")
+		else
+			assert(def.scale == nil, def.id .. " is not a size mutation but has a scale")
+		end
+	end
 end)
 
 test("Every weather event grants a real, weather-only mutation", function()

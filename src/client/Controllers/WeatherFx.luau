@@ -14,6 +14,8 @@ local Shared = ReplicatedStorage.Shared
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local Weather = require(Shared.Config.Weather)
+local Hud = require(script.Parent.Hud)
+local Sfx = require(script.Parent.Parent.Sfx)
 local Ui = require(script.Parent.Parent.Ui)
 
 local EMITTER_HEIGHT = 45
@@ -110,6 +112,7 @@ local function applyWeather()
 		local clock = if def.id == "Starfall" then NIGHT_CLOCK else dayClock
 		TweenService:Create(Lighting, TweenInfo.new(3), { ClockTime = clock }):Play()
 		showBanner(def)
+		Sfx.play("Weather")
 	else
 		emitter.Enabled = false
 		pill.Visible = false
@@ -154,6 +157,7 @@ local function starStrike(target: Vector3)
 	light.Brightness = 2
 	light.Parent = star
 	star.Parent = camera
+	Sfx.play("Star", star)
 
 	local fall =
 		TweenService:Create(star, TweenInfo.new(STAR_FALL_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -183,7 +187,7 @@ local function buildUi()
 
 	banner = Ui.create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 130),
+		Position = UDim2.new(0.5, 0, 0, 16),
 		Size = UDim2.fromOffset(460, 96),
 		BackgroundColor3 = Ui.Colors.Outline,
 		BackgroundTransparency = 0.15,
@@ -208,15 +212,15 @@ local function buildUi()
 		Parent = banner,
 	})
 
+	-- Countdown row at the top of the HUD's status panel.
 	pill = Ui.create("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 100),
-		Size = UDim2.fromOffset(220, 28),
-		BackgroundColor3 = Ui.Colors.Outline,
-		BackgroundTransparency = 0.2,
+		Size = UDim2.new(1, 0, 0, 28),
+		BackgroundColor3 = Ui.Colors.Accent,
+		BackgroundTransparency = 0.1,
+		LayoutOrder = 0,
 		Visible = false,
-		Parent = gui,
-	}, { Ui.corner(14) })
+		Parent = Hud.getStatusStack(),
+	}, { Ui.corner(14), Ui.stroke(Ui.Colors.Outline, 2) })
 	pillLabel = Ui.label({
 		Size = UDim2.new(1, -16, 1, -6),
 		Position = UDim2.fromOffset(8, 3),

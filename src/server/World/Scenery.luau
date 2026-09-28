@@ -26,7 +26,7 @@ export type Layout = {
 local SCENERY_SEED = 20260928
 local WORLD_HALF_SIZE = 260
 local POND_RADIUS = 22
-local MEADOW = Color3.fromRGB(150, 220, 120)
+local MEADOW = Color3.fromRGB(115, 205, 95)
 
 local PASTELS = {
 	Color3.fromRGB(255, 170, 210), -- pink
@@ -140,47 +140,44 @@ local function buildGround(folder: Instance, layout: Layout)
 	end
 end
 
+-- Bright but not blown out: moderate brightness, clean blue-sky atmosphere,
+-- a little extra saturation and contrast so pastel colors still read.
 local function buildLighting()
 	for _, child in Lighting:GetChildren() do
 		if child:IsA("PostEffect") or child:IsA("Atmosphere") then
 			child:Destroy()
 		end
 	end
-	Lighting.ClockTime = 14.5
-	Lighting.Brightness = 2.2
-	Lighting.Ambient = Color3.fromRGB(150, 130, 150)
-	Lighting.OutdoorAmbient = Color3.fromRGB(185, 165, 185)
-	Lighting.EnvironmentDiffuseScale = 0.6
-	Lighting.EnvironmentSpecularScale = 0.4
+	Lighting.ClockTime = 14
+	Lighting.Brightness = 1.6
+	Lighting.ExposureCompensation = -0.25
+	Lighting.Ambient = Color3.fromRGB(105, 95, 115)
+	Lighting.OutdoorAmbient = Color3.fromRGB(130, 120, 140)
+	Lighting.EnvironmentDiffuseScale = 0.4
+	Lighting.EnvironmentSpecularScale = 0.2
 	Lighting.GlobalShadows = true
-	Lighting.ShadowSoftness = 0.3
+	Lighting.ShadowSoftness = 0.25
 
 	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.28
-	atmosphere.Offset = 0.1
-	atmosphere.Color = Color3.fromRGB(255, 220, 238)
-	atmosphere.Decay = Color3.fromRGB(190, 160, 225)
-	atmosphere.Glare = 0.2
-	atmosphere.Haze = 1.2
+	atmosphere.Density = 0.22
+	atmosphere.Offset = 0
+	atmosphere.Color = Color3.fromRGB(200, 220, 255)
+	atmosphere.Decay = Color3.fromRGB(150, 175, 220)
+	atmosphere.Glare = 0
+	atmosphere.Haze = 0.4
 	atmosphere.Parent = Lighting
 
 	local color = Instance.new("ColorCorrectionEffect")
-	color.Saturation = 0.15
-	color.Contrast = 0.08
-	color.Brightness = 0.02
-	color.TintColor = Color3.fromRGB(255, 248, 252)
+	color.Saturation = 0.2
+	color.Contrast = 0.12
+	color.Brightness = -0.03
 	color.Parent = Lighting
 
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.35
-	bloom.Size = 24
-	bloom.Threshold = 1.6
+	bloom.Intensity = 0.15
+	bloom.Size = 18
+	bloom.Threshold = 2.5
 	bloom.Parent = Lighting
-
-	local rays = Instance.new("SunRaysEffect")
-	rays.Intensity = 0.04
-	rays.Spread = 0.8
-	rays.Parent = Lighting
 end
 
 local function candyTree(parent: Instance, rng: Rng.Rng, ground: Vector3)
@@ -216,7 +213,7 @@ local function arch(parent: Instance, z: number, width: number, facing: number)
 	model.Name = "Arch"
 	local half = width / 2 + 1.5
 	for _, x in { -half, half } do
-		Build.column(model, Vector3.new(x, 0, z), 14, 2.4, Color3.fromRGB(255, 255, 255))
+		Build.column(model, Vector3.new(x, 0, z), 14, 2.4, Color3.fromRGB(255, 240, 225))
 		Build.ball(model, Vector3.new(x, 15, z), 3.4, PASTELS[1], { CanCollide = true })
 	end
 	-- Row of candy balls forming the arch's top.
@@ -233,7 +230,7 @@ local function arch(parent: Instance, z: number, width: number, facing: number)
 		Transparency = 1,
 		Parent = model,
 	})
-	Build.billboard(signAnchor, "Grow a Squishy", 0, 420)
+	Build.billboard(signAnchor, "Grow a Squishy", 0, 420, 140)
 	model.Parent = parent
 end
 
@@ -318,8 +315,9 @@ function Scenery.build(parent: Instance, layout: Layout)
 	for _, spot in scatter(rng, layout, 40, 3, 160) do
 		flowerPatch(folder, rng, spot)
 	end
-	for _ = 1, 14 do
-		local center = Vector3.new(between(rng, -220, 220), between(rng, 90, 130), between(rng, -220, 220))
+	for _ = 1, 8 do
+		-- High up so they frame the sky instead of blocking the view.
+		local center = Vector3.new(between(rng, -220, 220), between(rng, 160, 210), between(rng, -220, 220))
 		cloud(folder, rng, center)
 	end
 

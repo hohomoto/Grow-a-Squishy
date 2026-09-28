@@ -75,6 +75,7 @@ function GardenService.Harvest(player: Player, key: string)
 	end
 	if #data.backpack >= Economy.BackpackCapacity then
 		Sync.notify(player, "Backpack full! Sell your squishies at the Squishy Buyer.")
+		Sync.sfx(player, "Error")
 		return
 	end
 
@@ -101,6 +102,10 @@ function GardenService.Harvest(player: Player, key: string)
 
 	local name = displayName(def, mutations)
 	Sync.notify(player, string.format("Harvested %s (%.2fx)", name, size))
+	Sync.sfx(player, "Squish")
+	if Mutations.multiplier(mutations) >= 5 then
+		Sync.sfx(player, "Sparkle")
+	end
 	if Mutations.multiplier(mutations) >= ANNOUNCE_MULTIPLIER then
 		for _, other in Players:GetPlayers() do
 			if other ~= player then
@@ -242,6 +247,7 @@ local function onPlantSeed(player: Player, rawTile: unknown, rawId: unknown)
 	local owned = data.seeds[def.id] or 0
 	if owned < 1 then
 		Sync.notify(player, "You're out of " .. def.name .. " seeds!")
+		Sync.sfx(player, "Error")
 		return
 	end
 
@@ -259,6 +265,7 @@ local function onPlantSeed(player: Player, rawTile: unknown, rawId: unknown)
 	}
 	data.plants[key] = plant
 	spawnPlant(player, plot, key, plant)
+	Sync.sfx(player, "Pop")
 	Sync.push(player)
 end
 
@@ -284,6 +291,7 @@ local function onRemovePlant(player: Player, rawTile: unknown)
 	end
 	local def = Squishies.ById[plant.id]
 	Sync.notify(player, "Dug up " .. (if def then displayName(def, plant.mutations) else "a squishy"))
+	Sync.sfx(player, "Dig")
 end
 
 function GardenService.Start()
