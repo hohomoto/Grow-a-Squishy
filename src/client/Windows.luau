@@ -2,7 +2,6 @@
 -- Pop-up window manager. Every full-screen menu (Shop, Backpack, ...) is a
 -- window; opening one closes the others, and each pops in with a bounce.
 
-local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 local Ui = require(script.Parent.Ui)
@@ -21,12 +20,7 @@ local openName: string? = nil
 
 local function getGui(): ScreenGui
 	if not gui then
-		gui = Ui.create("ScreenGui", {
-			Name = "Windows",
-			ResetOnSpawn = false,
-			DisplayOrder = 5,
-			Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
-		})
+		gui = Ui.screenGui("Windows", 5)
 	end
 	return gui :: ScreenGui
 end

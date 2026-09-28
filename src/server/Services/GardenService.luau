@@ -16,11 +16,18 @@ local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
 local RateLimit = require(script.Parent.Parent.RateLimit)
 local Sync = require(script.Parent.Parent.Sync)
+local Build = require(script.Parent.Parent.World.Build)
 
 -- Tag the client uses to find plants to animate.
 local PLANT_TAG = "SquishyPlant"
--- Full-grown placeholder size in studs.
+-- Full-grown size in studs, before per-shape proportions.
 local FULL_SIZE = 3.5
+-- Width / height / depth multipliers for each catalog shape.
+local SHAPE_PROPORTIONS = {
+	Ball = Vector3.new(1, 0.85, 1), -- squat mochi
+	Cylinder = Vector3.new(0.9, 1.1, 0.9), -- tall slime tub
+	Block = Vector3.new(1, 0.8, 0.9), -- bread bun / plushy
+}
 local TILE_COUNT = Economy.PlotColumns * Economy.PlotRows
 
 local GardenService = {}
@@ -92,25 +99,48 @@ local function spawnPlant(player: Player, plot: Model, key: string, plant: Types
 	end
 
 	local anchor = tile.Position + Vector3.new(0, tile.Size.Y / 2, 0)
-	local seedling = FULL_SIZE * 0.25
+	local proportions = SHAPE_PROPORTIONS[def.shape] or Vector3.one
+	local facing = plot:GetAttribute("Facing")
+	local seedling = proportions * FULL_SIZE * 0.25
+	local color = Color3.fromRGB(def.color[1], def.color[2], def.color[3])
 
 	local part = Instance.new("Part")
 	part.Name = key
-	part.Shape = (Enum.PartType :: any)[def.shape]
-	part.Size = Vector3.one * seedling
-	part.CFrame = CFrame.new(anchor + Vector3.new(0, seedling / 2, 0))
-		-- Cylinders point along X by default; stand them upright.
-		* (if def.shape == "Cylinder" then CFrame.Angles(0, 0, math.pi / 2) else CFrame.identity)
+	part.Size = seedling
+	part.CFrame = CFrame.new(anchor + Vector3.new(0, seedling.Y / 2, 0))
 	part.Anchored = true
 	part.CanCollide = false
-	part.Color = Color3.fromRGB(def.color[1], def.color[2], def.color[3])
+	part.Color = color
 	part.Material = (Enum.Material :: any)[def.material]
 	part:SetAttribute("SquishyId", def.id)
 	part:SetAttribute("TileIndex", tonumber(key))
 	part:SetAttribute("OwnerUserId", player.UserId)
 	part:SetAttribute("FullSize", FULL_SIZE)
+	part:SetAttribute("Proportions", proportions)
 	part:SetAttribute("Anchor", anchor)
+	part:SetAttribute("Facing", if typeof(facing) == "Vector3" then facing else Vector3.new(0, 0, -1))
 	applyTimes(part, plant)
+
+	-- Round shapes use the classic Head mesh for a soft, squishy look.
+	if def.shape ~= "Block" then
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Head
+		mesh.Parent = part
+	end
+	Build.face(part)
+
+	-- Sparkles while ready; the client switches them on and off.
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Name = "ReadySparkles"
+	sparkles.Enabled = false
+	sparkles.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+	sparkles.LightEmission = 0.8
+	sparkles.Rate = 4
+	sparkles.Lifetime = NumberRange.new(0.8, 1.4)
+	sparkles.Speed = NumberRange.new(1, 2.5)
+	sparkles.SpreadAngle = Vector2.new(180, 180)
+	sparkles.Size = NumberSequence.new(0.35, 0)
+	sparkles.Parent = part
 
 	local info = Instance.new("BillboardGui")
 	info.Name = "Info"

@@ -3,6 +3,7 @@
 -- (buttons, labels, strokes, squishy icons). All UI is built in code so it
 -- lives in Git; swap colors and fonts here to restyle the whole game.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -43,6 +44,19 @@ function Ui.create(className: string, props: { [string]: any }, children: { any 
 	-- Parent last so the instance renders fully configured.
 	instance.Parent = parent
 	return instance
+end
+
+-- Every screen goes through this. Sibling layering makes children always draw
+-- on top of their parent; ScreenGuis made in code default to Global layering,
+-- where a button with a higher ZIndex hides its own text.
+function Ui.screenGui(name: string, displayOrder: number?): ScreenGui
+	return Ui.create("ScreenGui", {
+		Name = name,
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = displayOrder or 0,
+		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
+	})
 end
 
 function Ui.corner(radius: number?): Instance

@@ -22,26 +22,34 @@ local PlotInput = {}
 local localPlayer = Players.LocalPlayer
 local pendingDig: { tile: number, at: number }? = nil
 
--- Returns the plot and tile index under a screen position, if it is on a
--- plot the local player owns.
-local function tileAt(screenPosition: Vector2): (Model?, number?)
+local function ownPlot(): Model?
 	local plots = Workspace:FindFirstChild("Plots")
+	if not plots then
+		return nil
+	end
+	for _, plot in plots:GetChildren() do
+		if plot:IsA("Model") and plot:GetAttribute("OwnerUserId") == localPlayer.UserId then
+			return plot
+		end
+	end
+	return nil
+end
+
+-- Returns the local player's plot and the tile index under a screen position.
+-- Only tiles and plants are hit-tested, so fences and signs never get in the way.
+local function tileAt(screenPosition: Vector2): (Model?, number?)
+	local plot = ownPlot()
 	local camera = Workspace.CurrentCamera
-	if not plots or not camera then
+	if not plot or not camera then
 		return nil, nil
 	end
 	local ray = camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Include
-	params.FilterDescendantsInstances = { plots }
+	params.FilterDescendantsInstances = { (plot :: any).Tiles, (plot :: any).Plants }
 	local result = Workspace:Raycast(ray.Origin, ray.Direction * RAY_LENGTH, params)
-	if not result then
-		return nil, nil
-	end
-	-- Tiles and plants both carry TileIndex.
-	local tileIndex = result.Instance:GetAttribute("TileIndex")
-	local plot = result.Instance:FindFirstAncestorWhichIsA("Model")
-	if type(tileIndex) ~= "number" or not plot or plot:GetAttribute("OwnerUserId") ~= localPlayer.UserId then
+	local tileIndex = result and result.Instance:GetAttribute("TileIndex")
+	if type(tileIndex) ~= "number" then
 		return nil, nil
 	end
 	return plot, tileIndex

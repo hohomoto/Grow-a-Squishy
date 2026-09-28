@@ -4,7 +4,6 @@
 --   left    menu buttons (Garden / Seeds / Sell travel, Backpack window)
 --   bottom  seed hotbar + shovel (number keys 1-9 select slots)
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
@@ -254,11 +253,7 @@ function Hud.Start()
 	-- We use our own hotbar, so hide Roblox's default (empty) backpack bar.
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 
-	local gui = Ui.create("ScreenGui", {
-		Name = "Hud",
-		ResetOnSpawn = false,
-		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
-	})
+	local gui = Ui.screenGui("Hud")
 	buildTop(gui)
 	buildMenu(gui)
 

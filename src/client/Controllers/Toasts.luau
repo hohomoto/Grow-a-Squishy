@@ -1,7 +1,6 @@
 --!strict
 -- Short pop-up messages above the hotbar, from the server or local code.
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -61,12 +60,7 @@ function Toasts.show(message: string)
 end
 
 function Toasts.Start()
-	local gui = Ui.create("ScreenGui", {
-		Name = "Toasts",
-		ResetOnSpawn = false,
-		DisplayOrder = 10,
-		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
-	})
+	local gui = Ui.screenGui("Toasts", 10)
 	container = Ui.create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -118),

@@ -10,7 +10,11 @@ and roadmap.
 
 ## What works right now
 
-- 6-player servers, each player gets a 24-tile plot
+- 6-player servers, each player gets a fenced 24-tile plot with their name on it
+- A candy-pastel world: terrain meadow and hills, pond, cotton-candy trees,
+  lollipop lamps, market stalls, giant squishy statues, soft lighting
+- Squishies are soft rounded blobs with faces that grow, bounce, and
+  sparkle when ready
 - 11 squishies across 7 rarities (Common → Celestial)
 - Real-time growth that continues while offline
 - Single-harvest and **regrowing** (multi-harvest) squishies
@@ -42,7 +46,8 @@ and roadmap.
 
 ## Running the game
 
-1. Open a new **Baseplate** place in Studio (the game reuses its Baseplate).
+1. Open a new **Baseplate** place in Studio. The game builds its own terrain
+   and map on start (and removes the template Baseplate).
 2. In a terminal in this folder: `rojo serve`
 3. In Studio: Plugins → Rojo → **Connect**. Code now live-syncs from this repo.
 4. Game Settings:
@@ -79,6 +84,9 @@ src/
     Remotes.luau      all client/server network events
     Types.luau        saved data and client state shapes
   server/             → ServerScriptService.Server
+    World/
+      Build.luau      map building blocks: parts, fences, faces, squishy blobs
+      Scenery.luau    terrain, lighting, trees, lamps, statues, clouds
     Services/
       DataService     load/save/session-lock player data
       WorldService    builds the placeholder map
@@ -106,8 +114,10 @@ existing shop roll unchanged. Never rename an existing `id`; it's the save key.
 tests. They check that every squishy is profitable, that the catalog is sorted
 by rarity and price, and that a new player can't soft-lock.
 
-**Replace placeholder art:** plants are spawned in
-`GardenService` (`spawnPlant`) and the map in `WorldService`. Keep the instance
+**Change the look:** the map is built in code from Roblox's built-in parts,
+meshes, terrain and lighting (no uploaded assets). Layout and plots live in
+`WorldService`, decorations and lighting in `World/Scenery.luau`, and plants
+in `GardenService` (`spawnPlant`). Keep the instance
 names and attributes the client relies on (`TileIndex`, `OwnerUserId`,
 `StartedAt`, `ReadyAt`, the `SquishyPlant` tag).
 

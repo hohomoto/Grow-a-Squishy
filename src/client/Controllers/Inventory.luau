@@ -26,7 +26,6 @@ local Inventory = {}
 
 local activeTab: Tab = "Squishies"
 local tabButtons: { [Tab]: TextButton } = {}
-local summary: TextLabel
 local grid: ScrollingFrame
 local emptyFrame: Frame
 local emptyText: TextLabel
@@ -64,12 +63,10 @@ end
 local function renderSquishies(state: Types.ClientState)
 	-- Most valuable first.
 	local items = {}
-	local total = 0
 	for _, item in state.backpack do
 		local def = Squishies.ById[item.id]
 		if def then
 			local value = Growth.value(def.baseValue, item.size)
-			total += value
 			table.insert(items, { def = def, size = item.size, value = value })
 		end
 	end
@@ -77,7 +74,6 @@ local function renderSquishies(state: Types.ClientState)
 		return a.value > b.value
 	end)
 
-	summary.Text = `{#state.backpack}/{state.backpackCapacity} squishies · worth {Format.commas(total)} coins`
 	if #items == 0 then
 		showEmpty("Your backpack is empty. Harvest ready squishies on your plot!")
 		return
@@ -154,7 +150,6 @@ local function renderSeeds(state: Types.ClientState)
 		end
 	end
 
-	summary.Text = `{owned} kinds of seeds · tap Equip, then tap your plot to plant`
 	if owned == 0 then
 		showEmpty("No seeds left. Buy more at the Seed Shop!", true)
 	end
@@ -214,19 +209,9 @@ function Inventory.Start()
 		tabButtons[tab] = button
 	end
 
-	summary = Ui.label({
-		Position = UDim2.fromOffset(2, 46),
-		Size = UDim2.new(1, -4, 0, 22),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = Ui.Colors.Text,
-		TextStrokeTransparency = 1,
-		Text = "",
-		Parent = content,
-	})
-
 	grid = Ui.create("ScrollingFrame", {
-		Position = UDim2.fromOffset(0, 74),
-		Size = UDim2.new(1, 0, 1, -74),
+		Position = UDim2.fromOffset(0, 48),
+		Size = UDim2.new(1, 0, 1, -48),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -244,7 +229,7 @@ function Inventory.Start()
 	})
 
 	emptyFrame = Ui.create("Frame", {
-		Position = UDim2.fromOffset(0, 90),
+		Position = UDim2.fromOffset(0, 64),
 		Size = UDim2.new(1, 0, 0, 110),
 		BackgroundTransparency = 1,
 		Visible = false,

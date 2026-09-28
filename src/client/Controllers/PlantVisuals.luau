@@ -18,8 +18,6 @@ local Squishies = require(Shared.Config.Squishies)
 local PLANT_TAG = "SquishyPlant"
 local UPDATE_INTERVAL = 1 / 20
 local SEEDLING_SCALE = 0.25
--- Cylinders point along X by default; stand them upright.
-local CYLINDER_UPRIGHT = CFrame.Angles(0, 0, math.pi / 2)
 
 local PlantVisuals = {}
 
@@ -28,36 +26,40 @@ local function update(part: BasePart, now: number, localUserId: number)
 	local readyAt = part:GetAttribute("ReadyAt")
 	local fullSize = part:GetAttribute("FullSize")
 	local anchor = part:GetAttribute("Anchor")
+	local proportions = part:GetAttribute("Proportions")
+	local facing = part:GetAttribute("Facing")
 	if type(startedAt) ~= "number" or type(readyAt) ~= "number" or type(fullSize) ~= "number" then
 		return
 	end
-	if typeof(anchor) ~= "Vector3" then
+	if typeof(anchor) ~= "Vector3" or typeof(proportions) ~= "Vector3" or typeof(facing) ~= "Vector3" then
 		return
 	end
 
 	local ready = Growth.isReady(readyAt, now)
 	local progress = Growth.progress(startedAt, readyAt, now)
 	local size = fullSize * (SEEDLING_SCALE + (1 - SEEDLING_SCALE) * progress)
-	local scale = Vector3.one
+	local squash = Vector3.one
 	if ready then
 		-- Squash and stretch: wider when shorter, like a squishy being pressed.
 		local squish = math.sin(now * 5 + ((part:GetAttribute("TileIndex") or 0) :: number)) * 0.06
-		scale = Vector3.new(1 + squish, 1 - squish, 1 + squish)
+		squash = Vector3.new(1 + squish, 1 - squish, 1 + squish)
 	end
 
-	local isCylinder = (part :: Part).Shape == Enum.PartType.Cylinder
-	local height = size * scale.Y
-	-- A cylinder's length runs along its local X, which is world up once rotated.
-	local finalSize = if isCylinder then Vector3.new(height, size * scale.X, size * scale.Z) else size * scale
+	local finalSize = proportions * squash * size
 	part.Size = finalSize
-	part.CFrame = CFrame.new(anchor + Vector3.new(0, height / 2, 0))
-		* (if isCylinder then CYLINDER_UPRIGHT else CFrame.identity)
+	local center = anchor + Vector3.new(0, finalSize.Y / 2, 0)
+	part.CFrame = CFrame.lookAt(center, center + facing)
 
 	local label = part:FindFirstChild("Label", true)
 	if label and label:IsA("TextLabel") then
 		local def = Squishies.ById[part:GetAttribute("SquishyId") :: string]
 		local name = if def then def.name else "Squishy"
 		label.Text = if ready then name .. " - Ready!" else `{name} {Format.duration(readyAt - now)}`
+	end
+
+	local sparkles = part:FindFirstChild("ReadySparkles")
+	if sparkles and sparkles:IsA("ParticleEmitter") then
+		sparkles.Enabled = ready
 	end
 
 	local prompt = part:FindFirstChildWhichIsA("ProximityPrompt")
