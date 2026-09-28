@@ -48,7 +48,15 @@ local function tileAt(screenPosition: Vector2): (Model?, number?)
 	params.FilterType = Enum.RaycastFilterType.Include
 	params.FilterDescendantsInstances = { (plot :: any).Tiles, (plot :: any).Plants }
 	local result = Workspace:Raycast(ray.Origin, ray.Direction * RAY_LENGTH, params)
-	local tileIndex = result and result.Instance:GetAttribute("TileIndex")
+	if not result then
+		return nil, nil
+	end
+	-- Tiles carry TileIndex themselves; plant parts belong to a plant model that does.
+	local tileIndex = result.Instance:GetAttribute("TileIndex")
+	if tileIndex == nil then
+		local plantModel = result.Instance:FindFirstAncestorWhichIsA("Model")
+		tileIndex = plantModel and plantModel:GetAttribute("TileIndex")
+	end
 	if type(tileIndex) ~= "number" then
 		return nil, nil
 	end

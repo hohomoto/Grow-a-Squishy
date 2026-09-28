@@ -1,9 +1,14 @@
 --!strict
--- Animates every plant locally from the attributes the server puts on it:
--- grows from seedling to full size, shows a countdown and mutation tags,
--- tints and decorates mutated squishies (Gold, Rainbow, Frozen, ...), and
--- gives ready ones a squish-bounce and sparkles. Also hides the Harvest
--- prompt unless the plant is ready and belongs to the local player.
+-- Animates every plant model locally from the attributes the server puts on
+-- it: grows it from seedling to full size, shows a countdown and mutation
+-- tags, tints and decorates mutated plants (Gold, Rainbow, Frozen, ...),
+-- scales size mutations (Mini .. Colossal), and gives ready plants a
+-- squish-bounce and sparkles. Also hides the Harvest prompt unless the plant
+-- is ready and belongs to the local player.
+--
+-- The server builds each model at full size. The first time a model shows up
+-- here, we record every part's offset and size relative to its Root, then
+-- rescale the whole model around Root from those records.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -18,7 +23,10 @@ local Mutations = require(Shared.Config.Mutations)
 local Squishies = require(Shared.Config.Squishies)
 
 local PLANT_TAG = "SquishyPlant"
-local UPDATE_INTERVAL = 1 / 20
+local TICK = 1 / 20
+-- Plants farther than this from the camera update once a second, without bounce.
+local NEAR_DISTANCE = 90
+local FAR_EVERY_N_TICKS = 20
 local SEEDLING_SCALE = 0.25
 
 local function mutationColor(id: string): Color3
@@ -31,13 +39,81 @@ local ICE = mutationColor("Frozen")
 local SLIME = mutationColor("Slimy")
 local STAR = mutationColor("Starstruck")
 
--- Per-plant cache so mutation effects are only rebuilt when they change.
-type Effects = { raw: string, ids: { string }, has: { [string]: boolean }, tags: string, scale: number }
-local effects: { [BasePart]: Effects } = setmetatable({}, { __mode = "k" }) :: any
+type Piece = { part: BasePart, offset: CFrame, size: Vector3, shade: number? }
+type Effects = { raw: string, has: { [string]: boolean }, tags: string, scale: number, top: any }
+type Plant = {
+	model: Model,
+	rootCFrame: CFrame,
+	pieces: { Piece },
+	height: number,
+	body: BasePart?,
+	info: BillboardGui?,
+	label: TextLabel?,
+	prompt: ProximityPrompt?,
+	sparkles: ParticleEmitter?,
+	fx: Effects?,
+	lastScale: number,
+	lastColorKey: string,
+}
+
+local plants: { [Model]: Plant } = setmetatable({}, { __mode = "k" }) :: any
+local tickCount = 0
 
 local PlantVisuals = {}
 
-local function buildEffects(part: BasePart, raw: string): Effects
+-- Same shading rule as the server's SquishyModels.shade.
+local function shade(color: Color3, amount: number): Color3
+	if amount >= 0 then
+		return color:Lerp(Color3.new(1, 1, 1), amount)
+	end
+	return color:Lerp(Color3.new(0, 0, 0), -amount)
+end
+
+local function capture(model: Model): Plant?
+	local root = model.PrimaryPart or model:FindFirstChild("Root")
+	if not root or not root:IsA("BasePart") then
+		return nil
+	end
+	local pieces = {}
+	local height = 0
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant ~= root then
+			local offset = root.CFrame:ToObjectSpace(descendant.CFrame)
+			local shadeValue = descendant:GetAttribute("Shade")
+			table.insert(pieces, {
+				part = descendant,
+				offset = offset,
+				size = descendant.Size,
+				shade = if type(shadeValue) == "number" then shadeValue else nil,
+			})
+			height = math.max(height, offset.Position.Y + descendant.Size.Y / 2)
+		end
+	end
+	local info = root:FindFirstChild("Info")
+	local body = model:FindFirstChild("Body")
+	local plant: Plant = {
+		model = model,
+		rootCFrame = root.CFrame,
+		pieces = pieces,
+		height = height,
+		body = if body and body:IsA("BasePart") then body else nil,
+		info = if info and info:IsA("BillboardGui") then info else nil,
+		label = nil,
+		prompt = root:FindFirstChildWhichIsA("ProximityPrompt"),
+		sparkles = nil,
+		fx = nil,
+		lastScale = -1,
+		lastColorKey = "",
+	}
+	local label = plant.info and plant.info:FindFirstChild("Label")
+	plant.label = if label and label:IsA("TextLabel") then label else nil
+	local sparkles = plant.body and plant.body:FindFirstChild("ReadySparkles")
+	plant.sparkles = if sparkles and sparkles:IsA("ParticleEmitter") then sparkles else nil
+	plants[model] = plant
+	return plant
+end
+
+local function buildEffects(plant: Plant, raw: string): Effects
 	local ids: { string } = if raw == "" then {} else string.split(raw, ",")
 	local has = {}
 	local tags = {}
@@ -49,15 +125,18 @@ local function buildEffects(part: BasePart, raw: string): Effects
 		end
 	end
 
-	-- Replace any previous mutation particles/light.
-	for _, name in { "MutationFx", "MutationLight" } do
-		local old = part:FindFirstChild(name)
-		if old then
-			old:Destroy()
+	-- Replace any previous mutation particles/light on the body.
+	local body = plant.body
+	if body then
+		for _, name in { "MutationFx", "MutationLight" } do
+			local old = body:FindFirstChild(name)
+			if old then
+				old:Destroy()
+			end
 		end
 	end
 	local top = Mutations.top(ids)
-	if top then
+	if top and body then
 		local emitter = Instance.new("ParticleEmitter")
 		emitter.Name = "MutationFx"
 		emitter.Color = ColorSequence.new(Color3.new(1, 1, 1), mutationColor(top.id))
@@ -71,21 +150,28 @@ local function buildEffects(part: BasePart, raw: string): Effects
 			-- Slime drips downward.
 			emitter.Acceleration = Vector3.new(0, -8, 0)
 		end
-		emitter.Parent = part
+		emitter.Parent = body
 		if top.multiplier >= 15 then
 			local light = Instance.new("PointLight")
 			light.Name = "MutationLight"
 			light.Color = mutationColor(top.id)
 			light.Range = 9
 			light.Brightness = 1.5
-			light.Parent = part
+			light.Parent = body
 		end
 	end
-	part.Reflectance = if has.Gold or has.Frozen then 0.25 else 0
+	local shiny = if has.Gold or has.Frozen then 0.25 else 0
+	for _, piece in plant.pieces do
+		if piece.shade then
+			piece.part.Reflectance = shiny
+		end
+	end
 
-	local cached = { raw = raw, ids = ids, has = has, tags = table.concat(tags, " "), scale = Mutations.scale(ids) }
-	effects[part] = cached
-	return cached
+	local fx = { raw = raw, has = has, tags = table.concat(tags, " "), scale = Mutations.scale(ids), top = top }
+	plant.fx = fx
+	plant.lastColorKey = ""
+	plant.lastScale = -1
+	return fx
 end
 
 local function displayColor(base: Color3, fx: Effects, now: number, seed: number): Color3
@@ -107,84 +193,113 @@ local function displayColor(base: Color3, fx: Effects, now: number, seed: number
 	return color
 end
 
-local function update(part: BasePart, now: number, localUserId: number)
-	local startedAt = part:GetAttribute("StartedAt")
-	local readyAt = part:GetAttribute("ReadyAt")
-	local fullSize = part:GetAttribute("FullSize")
-	local anchor = part:GetAttribute("Anchor")
-	local proportions = part:GetAttribute("Proportions")
-	local facing = part:GetAttribute("Facing")
-	local baseColor = part:GetAttribute("BaseColor")
-	if type(startedAt) ~= "number" or type(readyAt) ~= "number" or type(fullSize) ~= "number" then
+local function update(plant: Plant, now: number, near: boolean, localUserId: number)
+	local model = plant.model
+	local startedAt = model:GetAttribute("StartedAt")
+	local readyAt = model:GetAttribute("ReadyAt")
+	if type(startedAt) ~= "number" or type(readyAt) ~= "number" then
 		return
 	end
-	if typeof(anchor) ~= "Vector3" or typeof(proportions) ~= "Vector3" or typeof(facing) ~= "Vector3" then
-		return
-	end
-	local tileIndex = (part:GetAttribute("TileIndex") or 0) :: number
+	local tileIndex = (model:GetAttribute("TileIndex") or 0) :: number
 
-	local raw = part:GetAttribute("Mutations")
+	local raw = model:GetAttribute("Mutations")
 	raw = if type(raw) == "string" then raw else ""
-	local fx = effects[part]
-	if not fx or fx.raw ~= raw then
-		fx = buildEffects(part, raw :: string)
-	end
+	local cached = plant.fx
+	local fx: Effects = if cached and cached.raw == raw then cached else buildEffects(plant, raw :: string)
 
 	local ready = Growth.isReady(readyAt, now)
 	local progress = Growth.progress(startedAt, readyAt, now)
 	-- Size mutations (Mini / Big / Huge / Colossal) change the grown size.
-	local size = fullSize * fx.scale * (SEEDLING_SCALE + (1 - SEEDLING_SCALE) * progress)
-	local squash = Vector3.one
-	if ready then
+	local scale = fx.scale * (SEEDLING_SCALE + (1 - SEEDLING_SCALE) * progress)
+	local squish = 0
+	if ready and near then
 		-- Squash and stretch: wider when shorter, like a squishy being pressed.
-		local squish = math.sin(now * 5 + tileIndex) * 0.06
-		squash = Vector3.new(1 + squish, 1 - squish, 1 + squish)
+		squish = math.sin(now * 5 + tileIndex) * 0.06
 	end
 
-	local finalSize = proportions * squash * size
-	part.Size = finalSize
-	local center = anchor + Vector3.new(0, finalSize.Y / 2, 0)
-	part.CFrame = CFrame.lookAt(center, center + facing)
+	-- Reposition parts only when something visibly changed.
+	if squish ~= 0 or math.abs(scale - plant.lastScale) > 0.002 then
+		plant.lastScale = if squish ~= 0 then -1 else scale
+		local scaleVector = Vector3.new(scale * (1 + squish), scale * (1 - squish), scale * (1 + squish))
+		local rootCFrame = plant.rootCFrame
+		for _, piece in plant.pieces do
+			local offset = piece.offset
+			piece.part.Size = piece.size * scaleVector
+			piece.part.CFrame = rootCFrame * CFrame.new(offset.Position * scaleVector) * offset.Rotation
+		end
+		if plant.info then
+			plant.info.StudsOffsetWorldSpace = Vector3.new(0, plant.height * scale + 1.2, 0)
+		end
+	end
+
+	-- Mutation tint on the plant's own colored parts.
+	local baseColor = model:GetAttribute("BaseColor")
 	if typeof(baseColor) == "Color3" then
-		part.Color = displayColor(baseColor, fx, now, tileIndex)
+		local colorKey = if fx.has.Rainbow and near then tostring(now) else fx.raw
+		if colorKey ~= plant.lastColorKey then
+			plant.lastColorKey = colorKey
+			local tinted = displayColor(baseColor, fx, now, tileIndex)
+			for _, piece in plant.pieces do
+				if piece.shade then
+					piece.part.Color = shade(tinted, piece.shade)
+				end
+			end
+		end
 	end
 
-	local info = part:FindFirstChild("Info")
-	local label = info and info:FindFirstChild("Label")
-	if label and label:IsA("TextLabel") then
-		local def = Squishies.ById[part:GetAttribute("SquishyId") :: string]
+	if plant.label then
+		local def = Squishies.ById[model:GetAttribute("SquishyId") :: string]
 		local name = if def then def.name else "Squishy"
 		local status = if ready then "Ready!" else Format.duration(readyAt - now)
 		local line = `{name} {status}`
-		label.Text = if fx.tags ~= "" then fx.tags .. "\n" .. line else line
+		plant.label.Text = if fx.tags ~= "" then fx.tags .. "\n" .. line else line
 	end
-
-	local sparkles = part:FindFirstChild("ReadySparkles")
-	if sparkles and sparkles:IsA("ParticleEmitter") then
-		sparkles.Enabled = ready
+	if plant.sparkles then
+		plant.sparkles.Enabled = ready
 	end
+	if plant.prompt then
+		plant.prompt.Enabled = ready and model:GetAttribute("OwnerUserId") == localUserId
+	end
+end
 
-	local prompt = part:FindFirstChildWhichIsA("ProximityPrompt")
-	if prompt then
-		prompt.Enabled = ready and part:GetAttribute("OwnerUserId") == localUserId
+local function step(now: number, localUserId: number, full: boolean)
+	local camera = Workspace.CurrentCamera
+	local cameraPosition = if camera then camera.CFrame.Position else Vector3.zero
+	for _, instance in CollectionService:GetTagged(PLANT_TAG) do
+		if instance:IsA("Model") then
+			local plant = plants[instance] or capture(instance)
+			if plant then
+				local near = (plant.rootCFrame.Position - cameraPosition).Magnitude < NEAR_DISTANCE
+				if near or full then
+					update(plant, now, near, localUserId)
+				end
+			end
+		end
 	end
 end
 
 function PlantVisuals.Start()
 	local localUserId = Players.LocalPlayer.UserId
+
+	-- New plants shrink to seedling size immediately, before the next tick.
+	CollectionService:GetInstanceAddedSignal(PLANT_TAG):Connect(function(instance)
+		if instance:IsA("Model") then
+			local plant = plants[instance] or capture(instance)
+			if plant then
+				update(plant, Workspace:GetServerTimeNow(), true, localUserId)
+			end
+		end
+	end)
+
 	local elapsed = 0
 	RunService.Heartbeat:Connect(function(dt)
 		elapsed += dt
-		if elapsed < UPDATE_INTERVAL then
+		if elapsed < TICK then
 			return
 		end
 		elapsed = 0
-		local now = Workspace:GetServerTimeNow()
-		for _, instance in CollectionService:GetTagged(PLANT_TAG) do
-			if instance:IsA("BasePart") then
-				update(instance, now, localUserId)
-			end
-		end
+		tickCount += 1
+		step(Workspace:GetServerTimeNow(), localUserId, tickCount % FAR_EVERY_N_TICKS == 0)
 	end)
 end
 

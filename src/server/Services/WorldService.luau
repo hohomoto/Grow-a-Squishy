@@ -1,7 +1,16 @@
 --!strict
--- Builds the map at server start: the candy-colored path, player plots with
--- planter beds and picket fences, the Seed Shop and Squishy Buyer stalls, and
--- (via World/Scenery) terrain, lighting and decorations.
+-- Builds the map at server start, in the style of Grow a Garden: a big open
+-- field with dirt farm plots fenced in brown wood, lots of grass between
+-- them, the shops and a fountain plaza in the middle, and voxel trees around
+-- the edges (see World/Scenery).
+--
+-- Layout, seen from above (plots face the middle):
+--
+--     [Plot1]              [Plot2]
+--              Seed Shop
+--     [Plot3]   Fountain   [Plot4]
+--              Sell Stand
+--     [Plot5]              [Plot6]
 --
 -- Gameplay code relies on these names and attributes, so keep them if the map
 -- is ever rebuilt by hand in Studio: Plots/PlotN (OwnerUserId, Facing),
@@ -16,40 +25,33 @@ local Build = require(script.Parent.Parent.World.Build)
 local Scenery = require(script.Parent.Parent.World.Scenery)
 local SquishyModels = require(script.Parent.Parent.World.SquishyModels)
 
-local TILE_SIZE = 5
-local TILE_GAP = 0.6
+local TILE_SIZE = 6
+local TILE_GAP = 0.8
 local TILE_STEP = TILE_SIZE + TILE_GAP
 local PLOT_PADDING = 3
 -- Walkway between a plot's two garden beds (where the gate leads).
-local BED_GAP = 6
-local PATH_WIDTH = 24
-local PLOT_SPACING = 12
-local GATE_WIDTH = 6
+local BED_GAP = 7
+-- Open grass between the two columns of plots, where the shops are.
+local CENTER_GAP = 110
+-- Open grass between plots in the same column.
+local PLOT_SPACING = 45
+local GATE_WIDTH = 8
+local FENCE_MARGIN = 2.5
+-- Distance of each shop stall from the fountain.
+local STAND_Z = 42
 
 local BED_WIDTH = Economy.PlotColumns * TILE_STEP - TILE_GAP
 local BED_DEPTH = Economy.PlotBedRows * TILE_STEP - TILE_GAP
 local PLOT_WIDTH = BED_WIDTH + PLOT_PADDING * 2
 local PLOT_DEPTH = BED_DEPTH * 2 + BED_GAP + PLOT_PADDING * 2
-local PATH_HALF_LENGTH = (PLOT_DEPTH * 3 + PLOT_SPACING * 4) / 2
-local STAND_Z = (PLOT_DEPTH + PLOT_SPACING) / 2
 
--- Warm cream instead of pure white, which blows out in bright light.
-local WHITE = Color3.fromRGB(255, 243, 228)
--- A shade darker than the meadow so plots stand out.
-local GRASS = Color3.fromRGB(95, 180, 80)
-local GOLD = Color3.fromRGB(255, 205, 60)
-local SOIL = Color3.fromRGB(105, 70, 50)
-local PATH_COLOR = Color3.fromRGB(232, 196, 158)
-local CURB_COLOR = Color3.fromRGB(205, 160, 125)
--- One accent per plot, used for its fence rails, frame and sign.
-local PLOT_ACCENTS = {
-	Color3.fromRGB(255, 150, 200),
-	Color3.fromRGB(130, 220, 180),
-	Color3.fromRGB(185, 160, 255),
-	Color3.fromRGB(255, 190, 130),
-	Color3.fromRGB(130, 195, 255),
-	Color3.fromRGB(255, 225, 110),
-}
+local DIRT = Color3.fromRGB(128, 88, 58)
+local TILE_A = Color3.fromRGB(112, 76, 50)
+local TILE_B = Color3.fromRGB(120, 82, 54)
+local WALKWAY = Color3.fromRGB(150, 112, 78)
+local FENCE = Color3.fromRGB(110, 76, 50)
+local SIGN = Color3.fromRGB(120, 118, 122)
+local WHITE = Color3.fromRGB(250, 245, 238)
 
 local WorldService = {}
 
@@ -58,38 +60,37 @@ local sellPrompt: ProximityPrompt
 -- Where the travel buttons drop players, keyed by destination name.
 local arrivals: { [string]: CFrame } = {}
 
--- Picket fence from `from` to `to`, both at ground level.
-local function fence(parent: Instance, from: Vector3, to: Vector3, accent: Color3)
+-- Post-and-rail wooden fence from `from` to `to`, both at ground level.
+local function fence(parent: Instance, from: Vector3, to: Vector3)
 	local length = (to - from).Magnitude
-	local gaps = math.max(1, math.floor(length / 2.5))
+	local gaps = math.max(1, math.round(length / 6))
 	for i = 0, gaps do
 		Build.part({
-			Name = "Picket",
-			Size = Vector3.new(0.5, 2.6, 0.5),
-			Position = from:Lerp(to, i / gaps) + Vector3.new(0, 1.3, 0),
-			Color = WHITE,
+			Name = "Post",
+			Size = Vector3.new(0.9, 4.2, 0.9),
+			Position = from:Lerp(to, i / gaps) + Vector3.new(0, 2.1, 0),
+			Color = FENCE,
 			Parent = parent,
 		})
 	end
-	for _, height in { 0.9, 1.9 } do
+	for _, height in { 1.6, 3.2 } do
 		local lift = Vector3.new(0, height, 0)
-		Build.beam(parent, from + lift, to + lift, 0.25, 0.3, accent)
+		Build.beam(parent, from + lift, to + lift, 0.4, 0.55, FENCE)
 	end
 end
 
-local function buildPlot(parent: Instance, index: number, center: Vector3, facingPath: number): Model
-	local accent = PLOT_ACCENTS[(index - 1) % #PLOT_ACCENTS + 1]
+local function buildPlot(parent: Instance, index: number, center: Vector3, facingCenter: number): Model
 	local plot = Instance.new("Model")
 	plot.Name = "Plot" .. index
 	plot:SetAttribute("PlotIndex", index)
-	-- Direction from the plot toward the path; squishies face this way.
-	plot:SetAttribute("Facing", Vector3.new(facingPath, 0, 0))
+	-- Direction from the plot toward the middle of the map; plants face this way.
+	plot:SetAttribute("Facing", Vector3.new(facingCenter, 0, 0))
 
 	local base = Build.part({
 		Name = "Base",
 		Size = Vector3.new(PLOT_WIDTH, 1, PLOT_DEPTH),
 		Position = center + Vector3.new(0, 0.5, 0),
-		Color = GRASS,
+		Color = DIRT,
 		Parent = plot,
 	})
 	plot.PrimaryPart = base
@@ -99,40 +100,12 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 	decor.Name = "Decor"
 	decor.Parent = plot
 
-	-- Two garden beds (soil + frame), one on each side of a middle walkway.
-	local frameColor = Build.tint(accent, 0.35)
-	local bedOffset = (BED_DEPTH + BED_GAP) / 2
-	for _, side in { -1, 1 } do
-		local bedCenter = top + Vector3.new(0, 0, side * bedOffset)
-		Build.part({
-			Name = "Soil",
-			Size = Vector3.new(BED_WIDTH + 0.6, 0.2, BED_DEPTH + 0.6),
-			Position = bedCenter + Vector3.new(0, 0.1, 0),
-			Color = SOIL,
-			Parent = decor,
-		})
-		for _, edge in { -1, 1 } do
-			Build.part({
-				Name = "Frame",
-				Size = Vector3.new(BED_WIDTH + 2.2, 0.6, 0.8),
-				Position = bedCenter + Vector3.new(0, 0.3, edge * (BED_DEPTH / 2 + 0.7)),
-				Color = frameColor,
-				Parent = decor,
-			})
-			Build.part({
-				Name = "Frame",
-				Size = Vector3.new(0.8, 0.6, BED_DEPTH + 0.6),
-				Position = bedCenter + Vector3.new(edge * (BED_WIDTH / 2 + 0.7), 0.3, 0),
-				Color = frameColor,
-				Parent = decor,
-			})
-		end
-	end
+	-- Lighter dirt walkway between the two beds, leading to the gate.
 	Build.part({
 		Name = "Walkway",
-		Size = Vector3.new(PLOT_WIDTH - 1, 0.1, BED_GAP - 2.2),
+		Size = Vector3.new(PLOT_WIDTH, 0.1, BED_GAP - 1),
 		Position = top + Vector3.new(0, 0.05, 0),
-		Color = PATH_COLOR,
+		Color = WALKWAY,
 		Parent = decor,
 	})
 
@@ -148,14 +121,14 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 			local tileIndex = (row - 1) * Economy.PlotColumns + column
 			local tile = Build.part({
 				Name = tostring(tileIndex),
-				Size = Vector3.new(TILE_SIZE, 0.4, TILE_SIZE),
+				Size = Vector3.new(TILE_SIZE, 0.3, TILE_SIZE),
 				Position = Vector3.new(
 					originX + (column - 1) * TILE_STEP,
-					1.2,
+					1.15,
 					originZ + rowInBed * TILE_STEP + bed * (BED_DEPTH + BED_GAP)
 				),
-				-- Checkerboard shading so individual tiles are easy to see.
-				Color = if (row + column) % 2 == 0 then Color3.fromRGB(150, 100, 65) else Color3.fromRGB(135, 90, 58),
+				-- Subtle checkerboard so planting spots are easy to see.
+				Color = if (row + column) % 2 == 0 then TILE_A else TILE_B,
 				Parent = tiles,
 			})
 			tile:SetAttribute("TileIndex", tileIndex)
@@ -166,62 +139,47 @@ local function buildPlot(parent: Instance, index: number, center: Vector3, facin
 	plants.Name = "Plants"
 	plants.Parent = plot
 
-	-- Fence around the plot with a gate on the path side.
-	local hx = PLOT_WIDTH / 2 - 0.5
-	local hz = PLOT_DEPTH / 2 - 0.5
-	local frontX = center.X + facingPath * hx
-	local backX = center.X - facingPath * hx
-	local y = top.Y
+	-- Fence on the grass around the plot, with a gate facing the middle.
+	local hx = PLOT_WIDTH / 2 + FENCE_MARGIN
+	local hz = PLOT_DEPTH / 2 + FENCE_MARGIN
+	local frontX = center.X + facingCenter * hx
+	local backX = center.X - facingCenter * hx
 	local gateHalf = GATE_WIDTH / 2
-	fence(decor, Vector3.new(backX, y, center.Z - hz), Vector3.new(backX, y, center.Z + hz), accent)
-	fence(decor, Vector3.new(backX, y, center.Z - hz), Vector3.new(frontX, y, center.Z - hz), accent)
-	fence(decor, Vector3.new(backX, y, center.Z + hz), Vector3.new(frontX, y, center.Z + hz), accent)
-	fence(decor, Vector3.new(frontX, y, center.Z - hz), Vector3.new(frontX, y, center.Z - gateHalf), accent)
-	fence(decor, Vector3.new(frontX, y, center.Z + gateHalf), Vector3.new(frontX, y, center.Z + hz), accent)
-	for _, side in { -1, 1 } do
-		local gatePost = Vector3.new(frontX, y, center.Z + side * gateHalf)
-		Build.column(decor, gatePost, 4, 0.9, WHITE)
-		Build.ball(decor, gatePost + Vector3.new(0, 4.4, 0), 1.6, accent, { CanCollide = true })
-	end
-
-	-- Bushes in the back corners.
-	for _, side in { -1, 1 } do
-		local corner = Vector3.new(backX + facingPath * 2.2, y, center.Z + side * (hz - 2.2))
-		Build.ball(decor, corner + Vector3.new(0, 1, 0), 3.2, Color3.fromRGB(110, 190, 110), { CanCollide = true })
-		Build.ball(decor, corner + Vector3.new(0.6, 1.6, 0.4), 1.2, accent)
-	end
-
-	-- Walkway from the path to the gate.
-	Build.part({
-		Name = "Walkway",
-		Size = Vector3.new(4.4, 0.4, GATE_WIDTH),
-		Position = Vector3.new(center.X + facingPath * (PLOT_WIDTH / 2 + 2), 0.2, center.Z),
-		Color = PATH_COLOR,
-		Parent = decor,
-	})
+	fence(decor, Vector3.new(backX, 0, center.Z - hz), Vector3.new(backX, 0, center.Z + hz))
+	fence(decor, Vector3.new(backX, 0, center.Z - hz), Vector3.new(frontX, 0, center.Z - hz))
+	fence(decor, Vector3.new(backX, 0, center.Z + hz), Vector3.new(frontX, 0, center.Z + hz))
+	fence(decor, Vector3.new(frontX, 0, center.Z - hz), Vector3.new(frontX, 0, center.Z - gateHalf))
+	fence(decor, Vector3.new(frontX, 0, center.Z + gateHalf), Vector3.new(frontX, 0, center.Z + hz))
 
 	-- Where the owner appears, just inside the gate.
 	Build.part({
 		Name = "SpawnPoint",
 		Size = Vector3.new(2, 1, 2),
-		Position = Vector3.new(frontX - facingPath * 2.5, 1.5, center.Z),
+		Position = Vector3.new(center.X + facingCenter * (PLOT_WIDTH / 2 - 2), 1.5, center.Z),
 		Transparency = 1,
 		CanCollide = false,
 		CanQuery = false,
 		Parent = plot,
 	})
 
-	-- Name sign beside the gate. PlotService writes the owner's name into it.
-	local signBase = Vector3.new(frontX, y, center.Z - gateHalf - 3)
-	Build.column(decor, signBase, 5, 0.5, WHITE)
+	-- Wooden name sign outside the gate. PlotService writes the owner's name.
+	local signX = frontX + facingCenter * 3
+	local signZ = center.Z - gateHalf - 4
+	Build.part({
+		Name = "SignLeg",
+		Size = Vector3.new(0.6, 4, 0.6),
+		Position = Vector3.new(signX, 2, signZ),
+		Color = FENCE,
+		Parent = decor,
+	})
 	local board = Build.part({
 		Name = "SignPost",
-		Size = Vector3.new(0.4, 2.4, 6),
-		Position = signBase + Vector3.new(0, 5.6, 0),
-		Color = accent,
+		Size = Vector3.new(0.5, 2.6, 5),
+		Position = Vector3.new(signX, 4.6, signZ),
+		Color = SIGN,
 		Parent = plot,
 	})
-	Build.billboard(board, "Empty Plot", 2.8, nil, 70)
+	Build.billboard(board, "Empty Plot", 3, nil, 90)
 
 	plot.Parent = parent
 	return plot
@@ -242,47 +200,60 @@ local function buildStall(
 
 	local counter = Build.part({
 		Name = "Counter",
-		Size = Vector3.new(12, 3.5, 3),
+		Size = Vector3.new(14, 3.5, 3.5),
 		Position = position + Vector3.new(0, 1.75, 0),
-		Color = color,
+		Color = FENCE,
 		Parent = model,
 	})
 	Build.part({
 		Name = "CounterTop",
-		Size = Vector3.new(12.8, 0.4, 3.8),
-		Position = position + Vector3.new(0, 3.7, 0),
-		Color = WHITE,
+		Size = Vector3.new(14.8, 0.5, 4.2),
+		Position = position + Vector3.new(0, 3.75, 0),
+		Color = Color3.fromRGB(150, 108, 72),
 		Parent = model,
 	})
 
-	local frontZ = position.Z + front * 1.8
-	local backZ = position.Z - front * 4.5
-	for _, x in { -6, 6 } do
+	local frontZ = position.Z + front * 2
+	local backZ = position.Z - front * 5
+	for _, x in { -7, 7 } do
 		for _, z in { frontZ, backZ } do
-			Build.column(model, Vector3.new(position.X + x, 0, z), 9.5, 0.7, WHITE)
+			Build.part({
+				Name = "Post",
+				Size = Vector3.new(0.9, 10, 0.9),
+				Position = Vector3.new(position.X + x, 5, z),
+				Color = FENCE,
+				Parent = model,
+			})
 		end
 	end
 	Build.part({
 		Name = "BackWall",
-		Size = Vector3.new(12, 8, 0.6),
-		Position = Vector3.new(position.X, 4, backZ),
-		Color = Build.tint(color, 0.55),
+		Size = Vector3.new(14, 9, 0.8),
+		Position = Vector3.new(position.X, 4.5, backZ),
+		Color = Color3.fromRGB(150, 108, 72),
 		Parent = model,
 	})
 
-	-- Striped awning sloping down toward the front, with a scalloped edge.
+	-- Striped awning sloping down toward the front.
 	local stripes = 8
-	local stripeWidth = 13.6 / stripes
+	local stripeWidth = 15.6 / stripes
 	for i = 0, stripes - 1 do
-		local x = position.X - 6.8 + stripeWidth * (i + 0.5)
+		local x = position.X - 7.8 + stripeWidth * (i + 0.5)
 		local stripeColor = if i % 2 == 0 then color else WHITE
-		local back = Vector3.new(x, 10.6, backZ - front * 0.6)
-		local edge = Vector3.new(x, 8.6, frontZ + front * 1.4)
-		Build.beam(model, back, edge, stripeWidth, 0.35, stripeColor)
-		Build.ball(model, edge - Vector3.new(0, 0.3, 0), stripeWidth, stripeColor)
+		local back = Vector3.new(x, 11.4, backZ - front * 0.8)
+		local edge = Vector3.new(x, 9.2, frontZ + front * 1.6)
+		Build.beam(model, back, edge, stripeWidth, 0.4, stripeColor)
+		-- Hanging flap along the front edge.
+		Build.part({
+			Name = "Flap",
+			Size = Vector3.new(stripeWidth, 1, 0.3),
+			Position = edge - Vector3.new(0, 0.6, 0),
+			Color = stripeColor,
+			Parent = model,
+		})
 	end
 
-	Build.billboard(counter, signText, 11)
+	Build.billboard(counter, signText, 12, 260, 160)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "Prompt"
@@ -297,98 +268,74 @@ local function buildStall(
 	return model, prompt
 end
 
--- Two-tier fountain topped with a mochi, spraying sparkly water.
+-- Two-tier fountain topped with a bao, spraying water.
 local function buildFountain(parent: Instance, ground: Vector3)
 	local model = Instance.new("Model")
 	model.Name = "Fountain"
-	local water = Color3.fromRGB(110, 200, 255)
-	Build.column(model, ground, 1.4, 10, WHITE)
-	Build.column(model, ground + Vector3.new(0, 1.4, 0), 0.1, 9, water, { Transparency = 0.15, Reflectance = 0.2 })
-	Build.column(model, ground, 4, 1.4, Color3.fromRGB(255, 190, 215))
-	Build.column(model, ground + Vector3.new(0, 4, 0), 0.7, 5, WHITE)
-	Build.column(model, ground + Vector3.new(0, 4.7, 0), 0.1, 4.2, water, { Transparency = 0.15, Reflectance = 0.2 })
+	local stone = Color3.fromRGB(200, 200, 205)
+	local water = Color3.fromRGB(80, 170, 255)
+	Build.column(model, ground, 1.6, 14, stone)
+	Build.column(model, ground + Vector3.new(0, 1.6, 0), 0.1, 12.6, water, { Transparency = 0.15, Reflectance = 0.2 })
+	Build.column(model, ground, 5, 1.8, stone)
+	Build.column(model, ground + Vector3.new(0, 5, 0), 0.8, 6.5, stone)
+	Build.column(model, ground + Vector3.new(0, 5.8, 0), 0.1, 5.6, water, { Transparency = 0.15, Reflectance = 0.2 })
 	local mascot = SquishyModels.statue(
 		model,
-		ground + Vector3.new(0, 4.7, 0),
-		2.6,
-		Color3.fromRGB(255, 215, 230),
-		Vector3.new(0, 5, 20)
+		ground + Vector3.new(0, 5.8, 0),
+		3.4,
+		Color3.fromRGB(255, 220, 232),
+		Vector3.new(0, 6, 40)
 	)
 
 	local spray = Instance.new("ParticleEmitter")
 	spray.Color = ColorSequence.new(Color3.fromRGB(190, 235, 255), Color3.fromRGB(255, 255, 255))
 	spray.LightEmission = 0.4
-	spray.Size = NumberSequence.new(0.35, 0.1)
+	spray.Size = NumberSequence.new(0.4, 0.1)
 	spray.Transparency = NumberSequence.new(0.2, 0.8)
-	spray.Speed = NumberRange.new(9, 12)
+	spray.Speed = NumberRange.new(10, 13)
 	spray.Acceleration = Vector3.new(0, -24, 0)
 	spray.SpreadAngle = Vector2.new(22, 22)
 	spray.Lifetime = NumberRange.new(0.9, 1.2)
 	spray.Rate = 45
 	spray.EmissionDirection = Enum.NormalId.Top
-	spray.Parent = mascot
+	spray.Parent = mascot:FindFirstChild("Body")
 	model.Parent = parent
 end
 
-local function buildPathAndPlaza(map: Instance)
-	Build.part({
-		Name = "Path",
-		Size = Vector3.new(PATH_WIDTH, 0.4, PATH_HALF_LENGTH * 2),
-		Position = Vector3.new(0, 0.2, 0),
-		Color = PATH_COLOR,
-		Parent = map,
-	})
-	for _, side in { -1, 1 } do
-		Build.part({
-			Name = "Curb",
-			Size = Vector3.new(0.8, 0.6, PATH_HALF_LENGTH * 2),
-			Position = Vector3.new(side * (PATH_WIDTH / 2 + 0.4), 0.3, 0),
-			Color = CURB_COLOR,
-			Parent = map,
-		})
-	end
-
-	-- Round plaza in the middle of the path with a squishy fountain.
-	Build.column(map, Vector3.new(0, 0.3, 0), 0.25, 20, WHITE)
-	Build.column(map, Vector3.new(0, 0.3, 0), 0.35, 17, Color3.fromRGB(255, 175, 205))
-	buildFountain(map, Vector3.new(0, 0.65, 0))
+local function buildPlaza(map: Instance)
+	-- Dirt ring with grass inside, like Grow a Garden's middle circle.
+	Build.column(map, Vector3.new(0, 0, 0), 0.3, 40, DIRT)
+	Build.column(map, Vector3.new(0, 0, 0), 0.4, 35, Color3.fromRGB(110, 196, 92))
+	buildFountain(map, Vector3.new(0, 0.4, 0))
 
 	-- Benches facing the fountain.
-	for _, angle in { math.rad(45), math.rad(135), math.rad(225), math.rad(315) } do
-		local spot = Vector3.new(math.cos(angle) * 8, 0.65, math.sin(angle) * 8)
-		local facing = CFrame.lookAt(spot, Vector3.new(0, 0.65, 0))
-		Build.part({
-			Name = "BenchSeat",
-			Size = Vector3.new(4, 0.4, 1.4),
-			CFrame = facing * CFrame.new(0, 1.2, 0),
-			Color = Color3.fromRGB(220, 150, 110),
-			Parent = map,
-		})
-		Build.part({
-			Name = "BenchBack",
-			Size = Vector3.new(4, 1.4, 0.3),
-			CFrame = facing * CFrame.new(0, 2, 0.6),
-			Color = Color3.fromRGB(220, 150, 110),
-			Parent = map,
-		})
-		for _, x in { -1.6, 1.6 } do
+	for _, degrees in { 45, 135, 225, 315 } do
+		local angle = math.rad(degrees)
+		local spot = Vector3.new(math.cos(angle) * 12, 0.4, math.sin(angle) * 12)
+		local facing = CFrame.lookAt(spot, Vector3.new(0, 0.4, 0))
+		local pieces: { { size: Vector3, offset: CFrame } } = {
+			{ size = Vector3.new(5, 0.5, 1.6), offset = CFrame.new(0, 1.3, 0) }, -- seat
+			{ size = Vector3.new(5, 1.6, 0.4), offset = CFrame.new(0, 2.2, 0.7) }, -- backrest
+			{ size = Vector3.new(0.4, 1.1, 1.4), offset = CFrame.new(-2, 0.55, 0) }, -- legs
+			{ size = Vector3.new(0.4, 1.1, 1.4), offset = CFrame.new(2, 0.55, 0) },
+		}
+		for _, piece in pieces do
 			Build.part({
-				Name = "BenchLeg",
-				Size = Vector3.new(0.3, 1, 1.2),
-				CFrame = facing * CFrame.new(x, 0.5, 0),
-				Color = Color3.fromRGB(120, 85, 70),
+				Name = "Bench",
+				Size = piece.size,
+				CFrame = facing * piece.offset,
+				Color = FENCE,
 				Parent = map,
 			})
 		end
 	end
 
-	-- Spawn just south of the fountain.
 	if not Workspace:FindFirstChildWhichIsA("SpawnLocation", true) then
 		local spawn = Instance.new("SpawnLocation")
 		spawn.Anchored = true
 		spawn.Neutral = true
-		spawn.Size = Vector3.new(6, 0.2, 4)
-		spawn.Position = Vector3.new(0, 0.7, 6.5)
+		spawn.Size = Vector3.new(8, 0.2, 4)
+		spawn.Position = Vector3.new(0, 0.5, 11)
 		spawn.Transparency = 1
 		spawn.Parent = map
 	end
@@ -403,80 +350,49 @@ function WorldService.Start()
 	plotsFolder.Name = "Plots"
 	plotsFolder.Parent = Workspace
 
-	-- Plots alternate left/right of the path, front to back.
+	-- Two columns of plots facing each other across the middle.
 	local rows = math.ceil(Economy.PlotCount / 2)
-	local gateZ = {}
+	local plotX = CENTER_GAP / 2 + FENCE_MARGIN + PLOT_WIDTH / 2
+	local rowStep = PLOT_DEPTH + FENCE_MARGIN * 2 + PLOT_SPACING
 	for index = 1, Economy.PlotCount do
 		local side = if index % 2 == 1 then -1 else 1
 		local row = math.ceil(index / 2)
-		local x = side * (PATH_WIDTH / 2 + PLOT_WIDTH / 2 + 4)
-		local z = (row - (rows + 1) / 2) * (PLOT_DEPTH + PLOT_SPACING)
-		table.insert(plots, buildPlot(plotsFolder, index, Vector3.new(x, 0, z), -side))
-		table.insert(gateZ, z)
+		local z = (row - (rows + 1) / 2) * rowStep
+		table.insert(plots, buildPlot(plotsFolder, index, Vector3.new(side * plotX, 0, z), -side))
 	end
 
-	buildPathAndPlaza(map)
+	buildPlaza(map)
 
-	-- Seed Shop north of spawn, Squishy Buyer south; both open toward spawn.
-	local shop, shopPrompt = buildStall(
-		map,
-		"SeedShop",
-		Vector3.new(0, 0, -STAND_Z),
-		1,
-		Color3.fromRGB(255, 130, 190),
-		"Seed Shop",
-		"Browse"
-	)
+	-- Seed Shop north of the fountain, Squishy Buyer south; both face it.
+	local _, shopPrompt =
+		buildStall(map, "SeedShop", Vector3.new(0, 0, -STAND_Z), 1, Color3.fromRGB(230, 70, 90), "Seed Shop", "Browse")
 	-- The client opens the shop UI when this prompt fires.
 	shopPrompt:SetAttribute("OpensShop", true)
-	-- Mascot mochi on the roof, and seed "samples" on the counter.
-	SquishyModels.statue(shop, Vector3.new(0, 10.2, -STAND_Z - 1.5), 4.5, Color3.fromRGB(255, 200, 225), Vector3.zero)
-	for i, x in { -4.5, -3, 3, 4.5 } do
-		Build.ball(shop, Vector3.new(x, 4.5, -STAND_Z), 1.2, PLOT_ACCENTS[i])
-	end
 
-	local sell
-	sell, sellPrompt = buildStall(
+	local _, prompt = buildStall(
 		map,
 		"SellStand",
 		Vector3.new(0, 0, STAND_Z),
 		-1,
-		Color3.fromRGB(255, 195, 70),
+		Color3.fromRGB(60, 170, 90),
 		"Squishy Buyer",
 		"Sell All"
 	)
-	-- Giant gold coin on the roof facing the plaza, and coin stacks on the counter.
-	Build.decor({
-		Name = "Coin",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.8, 5, 5),
-		CFrame = CFrame.new(0, 12.5, STAND_Z + 1.5) * CFrame.Angles(0, math.pi / 2, 0),
-		Color = GOLD,
-		Reflectance = 0.15,
-		Parent = sell,
-	})
-	for stack, x in { -4.5, 4.5 } do
-		for level = 0, stack + 1 do
-			Build.column(sell, Vector3.new(x, 3.9 + level * 0.3, STAND_Z), 0.3, 1.6, GOLD)
-		end
-	end
+	sellPrompt = prompt
 
 	-- Travel buttons drop players a few studs in front of each stall.
-	local arriveZ = STAND_Z - 8
+	local arriveZ = STAND_Z - 9
 	arrivals.Shop = CFrame.lookAt(Vector3.new(0, 3, -arriveZ), Vector3.new(0, 3, -STAND_Z))
 	arrivals.Sell = CFrame.lookAt(Vector3.new(0, 3, arriveZ), Vector3.new(0, 3, STAND_Z))
 
-	-- Keep trees and flowers off the whole play area.
-	local playWidth = (PATH_WIDTH / 2 + PLOT_WIDTH + 8) * 2
+	-- Keep trees and decorations off the plots and the middle.
+	local halfWidth = plotX + PLOT_WIDTH / 2 + FENCE_MARGIN + 8
+	local halfDepth = (rows / 2) * rowStep + 8
 	Scenery.build(map, {
-		pathWidth = PATH_WIDTH,
-		pathHalfLength = PATH_HALF_LENGTH,
 		keepClear = {
-			{ center = Vector3.zero, size = Vector3.new(playWidth, 0, PATH_HALF_LENGTH * 2 + 16) },
+			{ center = Vector3.zero, size = Vector3.new(halfWidth * 2, 0, halfDepth * 2) },
 		},
-		gateZ = gateZ,
-		pondCenter = Vector3.new(0, 0, -(PATH_HALF_LENGTH + 42)),
-		statueCenter = Vector3.new(0, 0, PATH_HALF_LENGTH + 34),
+		pondCenter = Vector3.new(0, 0, -(halfDepth + 45)),
 	})
 end
 

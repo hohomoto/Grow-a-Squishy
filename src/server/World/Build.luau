@@ -18,7 +18,8 @@ function Build.part(props: { [string]: any }): Part
 	p.Anchored = true
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.SmoothPlastic
+	-- Classic Roblox plastic: flat colors with a subtle texture, like Grow a Garden.
+	p.Material = Enum.Material.Plastic
 	local parent = props.Parent
 	for key, value in props do
 		if key ~= "Parent" then

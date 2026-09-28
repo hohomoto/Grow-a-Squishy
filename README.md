@@ -12,10 +12,12 @@ and roadmap.
 
 - 6-player servers, each player gets a fenced 64-tile plot (two garden beds)
   with their name on it
-- A flat, cartoon-style pastel world: meadow and hills, pond, cotton-candy trees,
-  lollipop lamps, market stalls, giant squishy statues, soft lighting
-- Plants grow, bounce and sparkle when ready; baos and cubes have kawaii
-  faces, butter has a printed label, keycaps show letters
+- A big open world in the style of Grow a Garden: fenced dirt farms with
+  lots of grass between them, shops and a fountain plaza in the middle,
+  voxel trees, bushes, flowers, rocks and a pond, default sky with dynamic
+  clouds
+- Plants are multi-part 3D models (baos have a domed bun, pleated top and a
+  3D kawaii face); they grow, bounce and sparkle when ready
 - 35 plants in six families (bao squishies, squish cubes, butter, keycaps,
   slime, pop-its) across 7 rarities (Common → Celestial)
 - Mutations that multiply value, including size mutations (Mini, Big, Huge,
@@ -100,8 +102,8 @@ src/
   server/             → ServerScriptService.Server
     World/
       Build.luau      map building blocks: parts, fences, faces, squishy blobs
-      Scenery.luau    ground, hills, pond, lighting, trees, lamps, statues, clouds
-      SquishyModels.luau  3D look of each plant family (faces, labels, keycaps)
+      Scenery.luau    field, sky and clouds, voxel trees, bushes, flowers, pond
+      SquishyModels.luau  multi-part 3D model of each plant family
     Services/
       DataService     load/save/session-lock player data
       WorldService    builds the placeholder map
@@ -135,8 +137,8 @@ by rarity and price, and that a new player can't soft-lock.
 
 **Change the look:** the map is built in code from Roblox's built-in parts,
 meshes and lighting (no uploaded assets). Layout and plots live in
-`WorldService`, decorations and lighting in `World/Scenery.luau`, and plants
-in `GardenService` (`spawnPlant`). Keep the instance
+`WorldService`, decorations and lighting in `World/Scenery.luau`, and the
+plant models in `World/SquishyModels.luau`. Keep the instance
 names and attributes the client relies on (`TileIndex`, `OwnerUserId`,
 `StartedAt`, `ReadyAt`, the `SquishyPlant` tag).
 

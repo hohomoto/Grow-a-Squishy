@@ -60,16 +60,16 @@ local function starfallTick(def: Weather.WeatherDef)
 		return
 	end
 	local targets = {}
-	GardenService.ForEachPlant(function(player, key, plant, part)
-		if part then
-			table.insert(targets, { player = player, key = key, id = plant.id, part = part })
+	GardenService.ForEachPlant(function(player, key, plant, model)
+		if model then
+			table.insert(targets, { player = player, key = key, id = plant.id, position = model:GetPivot().Position })
 		end
 	end)
 	if #targets == 0 then
 		return
 	end
 	local target = targets[random:NextInteger(1, #targets)]
-	Remotes.StarStrike:FireAllClients(target.part.Position)
+	Remotes.StarStrike:FireAllClients(target.position)
 	-- Land the mutation as the star arrives on screen.
 	task.delay(1.2, function()
 		if GardenService.AddMutation(target.player, target.key, def.mutation) then
