@@ -71,6 +71,11 @@ local function unassign(player: Player)
 	setSign(plot, "Empty Plot")
 end
 
+-- Teleports the player to their own plot.
+function PlotService.SendHome(player: Player)
+	task.spawn(sendToPlot, player)
+end
+
 function PlotService.GetPlot(player: Player): Model?
 	return plotOf[player]
 end

@@ -25,6 +25,8 @@ local WorldService = {}
 
 local plots: { Model } = {}
 local sellPrompt: ProximityPrompt
+-- Where the travel buttons drop players, keyed by destination name.
+local arrivals: { [string]: CFrame } = {}
 
 local function part(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -230,6 +232,12 @@ function WorldService.Start()
 		"Squishy Buyer",
 		"Sell All"
 	)
+
+	-- Arrive a few studs in front of each stand, on the spawn side, facing it.
+	local standZ = (PLOT_DEPTH + PLOT_SPACING) / 2
+	local arriveZ = standZ - 8
+	arrivals.Shop = CFrame.lookAt(Vector3.new(0, 3, -arriveZ), Vector3.new(0, 3, -standZ))
+	arrivals.Sell = CFrame.lookAt(Vector3.new(0, 3, arriveZ), Vector3.new(0, 3, standZ))
 end
 
 function WorldService.GetPlots(): { Model }
@@ -238,6 +246,10 @@ end
 
 function WorldService.GetSellPrompt(): ProximityPrompt
 	return sellPrompt
+end
+
+function WorldService.GetArrival(destination: string): CFrame?
+	return arrivals[destination]
 end
 
 return WorldService

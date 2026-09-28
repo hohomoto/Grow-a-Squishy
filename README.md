@@ -20,6 +20,9 @@ and roadmap.
 - Sell stand, backpack capacity, coins leaderboard
 - Saving with session locking (prevents duplication by server-hopping)
 - Shovel to dig up plants (tap twice to confirm)
+- UI: coin counter, backpack meter, shop restock timer, seed hotbar,
+  Backpack window (harvested squishies with size and value, and your seeds),
+  Seed Shop window, travel buttons (Garden / Seeds / Sell)
 - Mouse and touch input (touch still needs testing on a real phone)
 
 ## Setup (once per teammate)
@@ -51,6 +54,16 @@ and roadmap.
 
 To produce a place file without Studio sync: `rojo build -o GrowASquishy.rbxlx`.
 
+## Controls
+
+| Action | PC | Mobile |
+|---|---|---|
+| Select a seed or the shovel | Click a hotbar slot, or keys **1–9** | Tap a hotbar slot |
+| Plant / dig up | Click a tile on your plot | Tap a tile |
+| Harvest | Walk up to a ready squishy, press **E** | Tap the Harvest prompt |
+| Backpack | **B** or the **Bag** button | **Bag** button |
+| Travel | **Garden / Seeds / Sell** buttons on the left | Same |
+
 ## Project layout
 
 ```
@@ -73,10 +86,13 @@ src/
       GardenService   plant / harvest / dig up
       ShopService     seed purchases, restock announcements
       SellService     sell stand
+      TravelService   Garden / Seeds / Sell travel buttons
     Sync.luau         sends each player their state
     RateLimit.luau    remote spam protection
   client/             → StarterPlayerScripts.Client
-    Controllers/      HUD, shop window, toasts, plot clicks, plant animation
+    Controllers/      HUD, backpack, shop, toasts, plot clicks, plant animation
+    Ui.luau           UI kit: theme colors, buttons, labels, squishy icons
+    Windows.luau      pop-up window manager (one window open at a time)
 tests/run.luau        unit tests for the shared modules (run with Lune)
 ```
 

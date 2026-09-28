@@ -6,6 +6,7 @@ local ORDER = {
 	"Toasts",
 	"Hud",
 	"ShopUi",
+	"Inventory",
 	"PlotInput",
 	"PlantVisuals",
 	-- State last: it requests the first snapshot once everyone is listening.

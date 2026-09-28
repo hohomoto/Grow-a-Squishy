@@ -15,6 +15,7 @@ local EVENT_NAMES = {
 	"PlantSeed", -- (tileIndex: number, squishyId: string)
 	"RemovePlant", -- (tileIndex: number)
 	"BuySeed", -- (squishyId: string)
+	"Travel", -- (destination: "Garden" | "Shop" | "Sell")
 }
 
 local folder: Folder
@@ -42,4 +43,5 @@ return {
 	PlantSeed = get("PlantSeed"),
 	RemovePlant = get("RemovePlant"),
 	BuySeed = get("BuySeed"),
+	Travel = get("Travel"),
 }
