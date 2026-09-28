@@ -1,0 +1,19 @@
+# Rojo build output
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+!assets/**/*.rbxm
+
+# Generated
+sourcemap.json
+roblox.d.luau
+roblox.yml
+globalTypes*.d.luau
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

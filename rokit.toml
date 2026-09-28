@@ -1,0 +1,7 @@
+# Toolchain pinned for the whole team. Install Rokit (https://github.com/rojo-rbx/rokit),
+# then run `rokit install` in this folder.
+[tools]
+rojo = "rojo-rbx/rojo@7.4.4"
+selene = "Kampfkarren/selene@0.28.0"
+stylua = "JohnnyMorganz/StyLua@2.0.2"
+lune = "lune-org/lune@0.10.4"
